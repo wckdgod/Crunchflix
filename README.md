@@ -58,6 +58,7 @@ Before the extension can work, you must provide your own API keys.
 ## Credits & Sources
 
 - **Universal Trakt Scrobbler**: Logic for extracting Netflix metadata via the `shakti` API.
+- **Made with Google Antigravity**: Developed using Google's experimental agentic coding assistant.
 - **MAL-AniList-to-Trakt-Migration**: Reference for migration tools by [tnicko1](https://github.com/tnicko1/MAL-AniList-to-Trakt-Migration).
 - **Trakt API**: <https://trakt.tv>
 - **TMDB**: <https://www.themoviedb.org>
