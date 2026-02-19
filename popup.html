@@ -15,36 +15,39 @@
         <h2>CRUNCHFLIX</h2>
         <div class="status" id="status">Not connected to Trakt</div>
         <button id="connectBtn">Connect to Trakt</button>
-        <button id="settingsBtn" class="secondary-btn" style="margin-top: 10px; background-color: #333;">Configure API
-            Keys</button>
+        <button id="settingsBtn" class="secondary-btn">Configure API Keys</button>
     </div>
 
     <!-- Code Display Section -->
     <div id="code-section" class="hidden">
-        <p>1. Visit <a href="#" id="verificationUrl" target="_blank">trakt.tv/activate</a></p>
+        <p>1. Visit <a href="#" id="verificationUrl" target="_blank" rel="noopener noreferrer">trakt.tv/activate</a></p>
         <p class="step-label">2. Enter Code:</p>
         <h3 id="userCode">...</h3>
         <div class="status">Waiting for authorization...</div>
     </div>
 
-    <!-- Connected UI (Aesthetic) -->
+    <!-- Connected UI -->
     <div id="connected-section" class="hidden">
 
-        <!-- Hero: Poster & Status -->
-        <div class="hero">
-            <img id="hero-bg" class="hero-bg" src="" alt="">
-            <div class="hero-content">
-                <img id="np-image" class="poster" src="" alt="No Poster">
-                <div class="info">
-                    <div id="np-title" class="title">Nothing Playing</div>
-                    <div id="np-status" class="status-badge stopped">Ready to Scrobble</div>
+        <!-- Full-Bleed Poster Card -->
+        <div class="poster-card">
+            <!-- Full-bleed poster image -->
+            <img id="np-image" class="poster-full" src="" alt="">
+            <!-- Gradient overlay so text is readable -->
+            <div class="poster-overlay"></div>
+            <!-- Metadata overlaid on top -->
+            <div class="poster-meta">
+                <div id="np-title" class="title">Nothing Playing</div>
+                <div class="meta-row">
+                    <span id="np-status" class="status-badge stopped">Ready</span>
+                    <span id="meta-rating" class="meta-rating"></span>
+                    <span id="meta-runtime" class="meta-runtime"></span>
+                    <span id="meta-certification" class="meta-badge"></span>
                 </div>
+                <div id="meta-genres" class="genre-row"></div>
+                <!-- Synopsis inside overlay, only shown if available -->
+                <p id="np-synopsis" class="synopsis hidden"></p>
             </div>
-        </div>
-
-        <!-- Synopsis -->
-        <div id="synopsis-section" class="synopsis-section">
-            <p id="np-synopsis" class="synopsis"></p>
         </div>
 
         <!-- Controls -->

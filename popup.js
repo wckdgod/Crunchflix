@@ -64,84 +64,103 @@ function showConnected(nowPlaying) {
 }
 
 function updateNowPlaying(nowPlaying) {
-    // Target elements directly within new HTML structure
     const npTitle = document.getElementById('np-title');
     const npStatus = document.getElementById('np-status');
-    const npImage = document.getElementById('np-image');
-    const heroBg = document.getElementById('hero-bg');
+    const npImage = document.getElementById('np-image'); // Now the full-bleed poster
+    const metaRating = document.getElementById('meta-rating');
+    const metaRuntime = document.getElementById('meta-runtime');
+    const metaCert = document.getElementById('meta-certification');
+    const metaGenres = document.getElementById('meta-genres');
     const npSynopsis = document.getElementById('np-synopsis');
+    const connectedSection = document.getElementById('connected-section');
 
-    // Robust Null Check
     if (!npTitle || !npStatus || !npImage) return;
 
     if (nowPlaying) {
-        // Transparent Title Logic (v1.4)
+        // Build display title
         let display = nowPlaying.traktTitle || nowPlaying.title;
         if (nowPlaying.traktYear) display += ` (${nowPlaying.traktYear})`;
+        if (nowPlaying.type === 'episode') display += ` • S${nowPlaying.season} E${nowPlaying.episode}`;
 
-        if (nowPlaying.type === 'episode') {
-            display += ` • S${nowPlaying.season} E${nowPlaying.episode}`;
-        }
-
+        // Status badge
         const status = nowPlaying.status || 'scrobbling';
-
-        // Status Badge Logic
         let badgeClass = `status-badge ${status}`;
-        if (status === 'paused' || status === 'stopped') badgeClass = `status-badge ${status}`;
-
-        let statusText = "Watching";
-        if (status === 'paused') statusText = "Paused";
-        if (status === 'stopped') statusText = "Stopped";
-        if (status === 'scrobbling') statusText = "Scrobbling";
+        let statusText = 'Watching';
+        if (status === 'paused') statusText = 'Paused';
+        if (status === 'stopped') statusText = 'Stopped';
+        if (status === 'scrobbling') statusText = 'Scrobbling';
         if (status === 'not_found' || status === 'parse_error') {
-            statusText = "Not Found";
-            badgeClass = "status-badge error";
+            statusText = 'Not Found';
+            badgeClass = 'status-badge error';
         }
 
-        npStatus.className = badgeClass;
         npTitle.textContent = display;
+        npStatus.className = badgeClass;
         npStatus.textContent = statusText;
+
+        // Rating
+        if (metaRating) metaRating.textContent = nowPlaying.rating ? `★ ${nowPlaying.rating}` : '';
+        // Runtime
+        if (metaRuntime) metaRuntime.textContent = nowPlaying.runtime ? `${nowPlaying.runtime} min` : '';
+        // Certification
+        if (metaCert) metaCert.textContent = nowPlaying.certification || '';
+
+        // Genres
+        if (metaGenres) {
+            metaGenres.innerHTML = '';
+            if (nowPlaying.genres && nowPlaying.genres.length > 0) {
+                nowPlaying.genres.forEach(genre => {
+                    const pill = document.createElement('span');
+                    pill.className = 'genre-pill';
+                    pill.textContent = genre;
+                    metaGenres.appendChild(pill);
+                });
+            }
+        }
 
         // Synopsis
         if (npSynopsis) {
-            npSynopsis.textContent = nowPlaying.synopsis || '';
-            npSynopsis.style.display = nowPlaying.synopsis ? 'block' : 'none';
+            if (nowPlaying.synopsis) {
+                npSynopsis.textContent = nowPlaying.synopsis;
+                npSynopsis.classList.remove('hidden');
+            } else {
+                npSynopsis.classList.add('hidden');
+            }
         }
 
-        // Image Handling with Fallback
+        // --- Full-bleed Poster Image (Show on Load) ---
         if (nowPlaying.image) {
-            npImage.src = nowPlaying.image;
-            npImage.style.opacity = "1";
-            if (heroBg) {
-                heroBg.src = nowPlaying.image;
-                heroBg.style.opacity = "0.8";
-            }
-        } else {
-            // Placeholder Styling
-            npImage.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"; // Transparent
-            npImage.style.opacity = "0"; // Hide foreground
-            if (heroBg) {
-                heroBg.src = "";
-                heroBg.style.opacity = "0";
-            }
-        }
+            npImage.style.opacity = '0';
 
-        npImage.style.display = 'block';
+            npImage.onload = function () {
+                this.style.opacity = '1';
+            };
+            npImage.onerror = function () {
+                this.style.opacity = '0';
+                this.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+            };
+
+            npImage.src = nowPlaying.image;
+        } else {
+            npImage.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+            npImage.style.opacity = '0';
+        }
 
     } else {
-        // Nothing playing state
-        npTitle.textContent = "Waiting for video...";
-        npStatus.className = "status-badge ready";
-        npStatus.textContent = "Ready";
-        if (npSynopsis) { npSynopsis.textContent = ''; npSynopsis.style.display = 'none'; }
-        if (heroBg) {
-            heroBg.src = "";
-            heroBg.style.opacity = "0";
-        }
-        npImage.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-        npImage.style.opacity = "0";
+        // Nothing playing
+        npTitle.textContent = 'Waiting for video...';
+        npStatus.className = 'status-badge ready';
+        npStatus.textContent = 'Ready';
+        if (metaRating) metaRating.textContent = '';
+        if (metaRuntime) metaRuntime.textContent = '';
+        if (metaCert) metaCert.textContent = '';
+        if (metaGenres) metaGenres.innerHTML = '';
+        if (npSynopsis) npSynopsis.classList.add('hidden');
+        npImage.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+        npImage.style.opacity = '0';
     }
 }
+
 
 function showDisconnected() {
     const authSection = document.getElementById('auth-section');

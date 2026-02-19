@@ -378,9 +378,15 @@ async function handleScrobble(data, sender) {
             image: finalImage,
             status: actionType === 'start' ? 'scrobbling' : (actionType === 'pause' ? 'paused' : 'stopped'),
             timestamp: Date.now(),
-            traktTitle: searchResult.show?.title || searchResult.movie?.title,
-            traktYear: searchResult.show?.year || searchResult.movie?.year,
-            synopsis: synopsis
+            traktTitle: show.title,
+            traktYear: show.year,
+            synopsis: synopsis,
+            // New Metadata Fields
+            rating: show.rating ? show.rating.toFixed(1) : null,
+            genres: show.genres ? show.genres.slice(0, 3) : [], // Limit to 3
+            runtime: show.runtime || null,
+            certification: show.certification || null,
+            network: show.network || null
         }
     });
 }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CRUNCHFLIX",
-  "version": "3.8",
+  "version": "1.0",
   "description": "Trakt scrobbler for Netflix and Crunchyroll.",
   "permissions": [
     "activeTab",
@@ -34,7 +34,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Ghost Scrobbler"
+    "default_title": "CRUNCHFLIX"
   },
   "options_ui": {
     "page": "options.html",

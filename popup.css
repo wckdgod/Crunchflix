@@ -1,14 +1,15 @@
 /* popup.css */
+
+/* --- Base --- */
 body {
     width: 320px;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     margin: 0;
     padding: 0;
-    background-color: #121212;
+    background: #0a0a0a;
     color: #e0e0e0;
-    min-height: 500px;
-    /* Ensure popup doesn't collapse */
-    overflow-y: auto;
+    overflow: hidden;
+    /* No scrollbar */
 }
 
 a {
@@ -16,33 +17,46 @@ a {
     text-decoration: none;
 }
 
-/* Auth Section */
+.hidden {
+    display: none !important;
+}
+
+/* --- Auth Section --- */
 #auth-section,
 #code-section {
     padding: 30px 20px;
     text-align: center;
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
 }
 
 h2 {
-    margin-top: 0;
+    margin: 0 0 5px 0;
     font-weight: 300;
-    letter-spacing: 1px;
+    font-size: 22px;
+    letter-spacing: 4px;
     color: #fff;
+    text-transform: uppercase;
 }
 
-/* Gradient Button */
+/* --- Buttons --- */
 button {
     background: linear-gradient(135deg, #ed1c24, #fa561e);
     color: white;
     border: none;
-    padding: 10px 15px;
-    border-radius: 6px;
-    font-weight: 600;
+    padding: 12px 15px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 13px;
     cursor: pointer;
     transition: transform 0.1s, opacity 0.2s;
     width: 100%;
-    margin-top: 10px;
-    font-size: 13px;
+    letter-spacing: 0.5px;
+    box-shadow: 0 4px 15px rgba(237, 28, 36, 0.3);
 }
 
 button:hover {
@@ -53,78 +67,143 @@ button:active {
     transform: scale(0.98);
 }
 
-/* Hidden Utility */
-.hidden {
-    display: none !important;
+.secondary-btn,
+#settingsBtn {
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: none;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    font-weight: 600;
+    margin-top: 4px;
 }
 
-/* Auth Section (Visible by Default) */
-#auth-section {
-    display: block;
+.secondary-btn:hover,
+#settingsBtn:hover {
+    background: rgba(255, 255, 255, 0.15);
 }
 
-/* Hero Card */
-.hero {
-    position: relative;
-    height: 180px;
-    overflow: hidden;
+/* --- Connected Section --- */
+#connected-section {
     display: flex;
-    align-items: flex-end;
-    padding: 15px;
-    background: #1b1b1f;
+    flex-direction: column;
 }
 
-.hero-bg {
+/* ============================================
+   FULL-BLEED POSTER CARD
+   ============================================ */
+.poster-card {
+    position: relative;
+    width: 320px;
+    height: 380px;
+    /* Full-bleed poster area */
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+/* The poster image itself — fills the entire card */
+.poster-full {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
-    filter: blur(20px) brightness(0.5);
-    z-index: 0;
-    opacity: 0.8;
-    transform: scale(1.1);
-    /* Prevent blur edges */
+    object-position: center top;
+    /* Show top of poster (face/title) */
+    opacity: 0;
+    /* Hidden by default, shown on load */
+    transition: opacity 0.4s ease;
+    background: radial-gradient(circle at 50% 30%, #2a1a2a, #080808);
 }
 
-.hero-content {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    align-items: flex-end;
+/* Gradient overlay — dark at bottom, transparent at top */
+.poster-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
     width: 100%;
-    gap: 15px;
+    height: 70%;
+    background: linear-gradient(to top,
+            rgba(0, 0, 0, 0.95) 0%,
+            rgba(0, 0, 0, 0.7) 40%,
+            transparent 100%);
+    z-index: 1;
 }
 
-.poster {
-    width: 80px;
-    height: 120px;
-    border-radius: 6px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
-    object-fit: cover;
-    background: #333;
-    flex-shrink: 0;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.info {
-    flex: 1;
+/* Metadata sitting on top of the overlay */
+.poster-meta {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: 16px;
+    box-sizing: border-box;
+    z-index: 2;
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
-    min-width: 0;
-    /* Text truncation fix */
-    padding-bottom: 2px;
+    gap: 8px;
 }
 
 .title {
-    font-size: 15px;
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1.25;
+    color: #fff;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
+    margin: 0;
+}
+
+/* Row: status badge + rating + runtime + cert */
+.meta-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.meta-rating {
+    font-size: 14px;
     font-weight: 700;
-    margin: 0 0 6px 0;
-    line-height: 1.3;
-    color: white;
+    color: #ffd700;
+}
+
+.meta-runtime {
+    font-size: 13px;
+    color: #ccc;
+}
+
+.meta-badge {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+}
+
+/* Genre pills */
+.genre-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.genre-pill {
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(10px);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    color: #ddd;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Synopsis — optional, inside overlay */
+.synopsis {
+    margin: 4px 0 0 0;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: #aaa;
     display: -webkit-box;
     -webkit-line-clamp: 3;
     line-clamp: 3;
@@ -132,104 +211,79 @@ button:active {
     overflow: hidden;
 }
 
+/* --- Status Badges --- */
 .status-badge {
     display: inline-flex;
     align-items: center;
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 600;
-    background: rgba(255, 255, 255, 0.1);
-    -webkit-backdrop-filter: blur(4px);
-    backdrop-filter: blur(4px);
-    margin-top: 2px;
-    align-self: flex-start;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
 
-/* Dynamic Status Colors */
 .status-badge.scrobbling {
-    background: rgba(76, 175, 80, 0.25);
+    background: rgba(76, 175, 80, 0.35);
     color: #a5d6a7;
-    border: 1px solid rgba(76, 175, 80, 0.4);
+    border: 1px solid rgba(76, 175, 80, 0.5);
 }
 
 .status-badge.paused {
-    background: rgba(255, 152, 0, 0.25);
+    background: rgba(255, 152, 0, 0.35);
     color: #ffcc80;
-    border: 1px solid rgba(255, 152, 0, 0.4);
+    border: 1px solid rgba(255, 152, 0, 0.5);
 }
 
 .status-badge.stopped,
 .status-badge.ready {
-    background: rgba(158, 158, 158, 0.25);
-    color: #e0e0e0;
-    border: 1px solid rgba(158, 158, 158, 0.4);
+    background: rgba(160, 160, 160, 0.25);
+    color: #ccc;
+    border: 1px solid rgba(160, 160, 160, 0.3);
 }
 
 .status-badge.error {
-    background: rgba(244, 67, 54, 0.25);
+    background: rgba(244, 67, 54, 0.35);
     color: #ef9a9a;
-    border: 1px solid rgba(244, 67, 54, 0.4);
+    border: 1px solid rgba(244, 67, 54, 0.5);
 }
 
+/* ============================================
+   CONTROLS (below poster card)
+   ============================================ */
 .controls {
-    padding: 15px 20px;
-    background: #121212;
+    padding: 14px 16px;
+    background: rgba(12, 12, 14, 0.95);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
 }
 
-/* Synopsis Section */
-.synopsis-section {
-    background: #1a1a1e;
-    border-top: 1px solid rgba(255,255,255,0.06);
-    padding: 0 16px;
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease, padding 0.3s ease;
-}
-
-.synopsis-section:has(.synopsis:not(:empty)) {
-    max-height: 200px;
-    padding: 12px 16px;
-}
-
-.synopsis {
-    margin: 0;
-    font-size: 11.5px;
-    line-height: 1.6;
-    color: #9e9e9e;
-    font-style: italic;
-    display: none;
-}
-
-
-/* Fix Match Button Style */
 #fixMatchBtn {
-    background: transparent;
-    border: 1px solid #333;
-    color: #777;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #e0e0e0;
     font-size: 11px;
-    padding: 8px;
-    margin-top: 10px;
+    padding: 10px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    border-radius: 8px;
+    margin-top: 0;
 }
 
 #fixMatchBtn:hover {
-    border-color: #555;
-    color: #ccc;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
 }
 
 /* Fix Section */
 #fix-section {
-    background: #1b1b1f;
-    padding: 15px;
-    border-radius: 8px;
-    margin-top: 15px;
-    border: 1px solid #333;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    background: rgba(25, 25, 30, 0.9);
+    padding: 14px;
+    border-radius: 10px;
+    margin-top: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 p.label {
@@ -241,15 +295,16 @@ p.label {
 
 input {
     width: 100%;
-    padding: 10px;
+    padding: 9px 10px;
     box-sizing: border-box;
-    background: #252528;
-    border: 1px solid #333;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.15);
     color: white;
-    border-radius: 4px;
+    border-radius: 6px;
     margin-bottom: 10px;
     font-family: inherit;
     font-size: 13px;
+    transition: border 0.2s;
 }
 
 input:focus {
@@ -264,8 +319,10 @@ input:focus {
 
 #fixSaveBtn {
     background: #4CAF50;
+    border: none;
     width: 50%;
     margin-top: 0;
+    box-shadow: none;
 }
 
 #fixCancelBtn {
@@ -279,20 +336,22 @@ input:focus {
 }
 
 #fix-status {
-    margin-top: 10px;
+    margin-top: 8px;
     font-size: 12px;
 }
 
 #disconnectBtn {
     background: transparent;
-    color: #888;
-    margin-top: 25px;
+    color: #555;
+    margin-top: 6px;
     font-size: 10px;
-    padding: 5px;
+    padding: 4px;
     text-transform: uppercase;
-    transition: color 0.2s;
+    letter-spacing: 0.5px;
+    box-shadow: none;
+    border: none;
 }
 
 #disconnectBtn:hover {
-    color: #ccc;
+    color: #aaa;
 }
