@@ -1,0 +1,455 @@
+{
+	"about": {
+		"message": "Over"
+	},
+	"aboutMessage": {
+		"message": "Jouw streaming service historiek, rechtstreeks op Trakt.tv!"
+	},
+	"add": {
+		"message": "Toevoegen"
+	},
+	"addDate": {
+		"message": "Datum toevoegen"
+	},
+	"addMissingWatchedDateFailed": {
+		"message": "Het is niet gelukt om de bekeken data toe te voegen."
+	},
+	"addWithReleaseDate": {
+		"message": "Voeg toe met datum van publicatie."
+	},
+	"addWithReleaseDateMissing": {
+		"message": "Voeg met de releasedatum toe indien er geen datum gevonden werd wanneer het item bekeken werd."
+	},
+	"allowRollbar": {
+		"message": "Rollbar toelaten om informatie over fouten te verzamelen."
+	},
+	"allowRollbarDescription": {
+		"message": "Indien ingeschakeld wordt er bij het optreden van een fout, informatie doorgestuurd zodat we deze fout snel kunnen oplossen en de extentie kunnen verbeteren. Deze informatie bevat: wanneer deze fout voor kwam, een traceback hiernaar, de naam en versie van uw browser en de naam van uw besturingssysteem. Deze data wordt niet gedeeld met anderen."
+	},
+	"appDescription": {
+		"message": "Een universele synchronisatie extentie voor Trakt.tv."
+	},
+	"autoSync": {
+		"message": "Automatisch synchroniseren"
+	},
+	"autoSyncNotActivated": {
+		"message": "Automatisch synchroniseren is niet geactiveerd. U moet eerst handmatig via de geschiedenispagina synchroniseren, zodat de laatste synchronisatie datum kan worden opgeslagen."
+	},
+	"autoSyncPageMessage": {
+		"message": "Dit zijn de items die automatisch werden gesynchroniseerd of niet automatisch konden worden gesynchroniseerd sinds de laatste review. Als er correcties nodig zijn, moet u deze toepassen, selecteer daarna de items die gecorrigeerd moeten worden en klik op de knop Synchroniseren. Daarna zal de cache worden verwijderd en zullen deze items niet meer op deze pagina verschijnen. Als er geen correcties nodig zijn, klik dan op de knop Synchroniseer Cache Wissen en hetzelfde zal gebeuren."
+	},
+	"autoSyncing": {
+		"message": "Automatisch synchroniseren..."
+	},
+	"cancel": {
+		"message": "Annuleren"
+	},
+	"cannotSync": {
+		"message": "Kan deze items niet synchroniseren"
+	},
+	"clear": {
+		"message": "Wissen"
+	},
+	"clearCaches": {
+		"message": "Cache legen"
+	},
+	"clearCachesFailed": {
+		"message": "Fout bij het legen van de caches."
+	},
+	"clearCachesSuccess": {
+		"message": "Cache geleegd."
+	},
+	"clearLastSync": {
+		"message": "Laatste synchronisatie datum wissen"
+	},
+	"clearStorage": {
+		"message": "Gegevens verwijderen"
+	},
+	"clearStorageFailed": {
+		"message": "Gegevens kon niet worden verwijderd."
+	},
+	"clearStorageSuccess": {
+		"message": "Gegevens verwijderd."
+	},
+	"clearSyncCache": {
+		"message": "Synchronisatie Cache leegmaken"
+	},
+	"close": {
+		"description": "This is the verb, as in 'to close'.",
+		"message": "Sluiten"
+	},
+	"confirmClearCachesMessage": {
+		"message": "Alle caches zullen worden geleegd, behalve de synchronisatie cache."
+	},
+	"confirmClearCachesTitle": {
+		"message": "Cache legen?"
+	},
+	"confirmClearLastSyncMessage": {
+		"message": "Je moet handmatig synchroniseren op de geschiedenis pagina van de streamingdienst om de automatische synchronisatie opnieuw te activeren."
+	},
+	"confirmClearLastSyncTitle": {
+		"message": "Laatste synchronisatie datum voor $SERVICE$ verwijderen?",
+		"placeholders": {
+			"service": {
+				"content": "$1"
+			}
+		}
+	},
+	"confirmClearStorageMessage": {
+		"message": "Alle opties worden reset naar hun oorspronkelijke waarde, waardoor je opnieuw moet inloggen."
+	},
+	"confirmClearStorageTitle": {
+		"message": "Gegevens verwijderen?"
+	},
+	"confirmClearSyncCacheMessage": {
+		"message": "Alle items op de huidige pagina worden verwijderd uit de cache en je kan ze nadien niet meer bewerken."
+	},
+	"confirmClearSyncCacheTitle": {
+		"message": "Synchronisatie cache legen?"
+	},
+	"continueLoading": {
+		"message": "Blijven laden"
+	},
+	"correct": {
+		"description": "This is the verb, as in 'to correct'.",
+		"message": "Corrigeren"
+	},
+	"correctItem": {
+		"message": "Corrigeer verkeerd item"
+	},
+	"correctItemFailed": {
+		"message": "Kon het item niet corrigeren."
+	},
+	"correctionDialogContent": {
+		"message": "Voeg de correcte Trakt URL toe voor $TITLE$ in het onderstaande veld.",
+		"placeholders": {
+			"title": {
+				"content": "$1"
+			}
+		}
+	},
+	"correctionDialogContentWithSuggestions": {
+		"message": "Voer de juiste Trakt URL in voor $TITLE$ in het veld hieronder of gebruik een van de suggesties.",
+		"placeholders": {
+			"title": {
+				"content": "$1"
+			}
+		}
+	},
+	"correctionDialogSyncedWarning": {
+		"message": "WAARSCHUWING: U corrigeert een item dat al is gesynchroniseerd. Als u doorgaat, wordt het eerder gesynchroniseerde item verwijderd uit uw Trakt geschiedenis."
+	},
+	"couldNotScrobble": {
+		"message": "Kon de data niet verwerken."
+	},
+	"currentCorrection": {
+		"message": "Momenteel gecorrigeerd naar"
+	},
+	"darkTheme": {
+		"message": "Donker"
+	},
+	"days": {
+		"message": "Dagen"
+	},
+	"daysDescription": {
+		"message": "Hoe vaak de automatische synchronisatie zal gebeuren."
+	},
+	"errorNotification": {
+		"message": "Er is een fout opgetreden. :("
+	},
+	"errorNotificationLogin": {
+		"message": "Het lijkt erop dat je niet bent ingelogd. Open de extentie en login met je Trakt account."
+	},
+	"errorNotificationNotFound": {
+		"message": "Oeps! We konden niet vinden wat je aan het bekijken bent op Trakt! Laat een bericht achter met de titel van het item."
+	},
+	"errorNotificationServers": {
+		"message": "We konden geen verbinding maken met de Trakt servers. Probeer het later nog eens."
+	},
+	"from": {
+		"message": "van"
+	},
+	"goToHistoryPage": {
+		"message": "Ga naar de geschiedenis pagina"
+	},
+	"grantCookies": {
+		"message": "Laat \"cookies\" toe zodat de extentie kan werken met Firefox Containers."
+	},
+	"grantCookiesDescription": {
+		"message": "Bij inschakelen zal de extentie werken met Firefox Containers door het ophalen van cookies van de huidige container waarin je je bevindt. Schakel deze optie enkel in indien je gebruik maakt van Firefox Containers."
+	},
+	"hideSynced": {
+		"message": "Verberg gesynchroniseerden."
+	},
+	"history": {
+		"message": "Historiek"
+	},
+	"historyFor": {
+		"message": "Geschiedenis van"
+	},
+	"historySyncError": {
+		"message": "Kon de historiek niet synchroniseren."
+	},
+	"historySyncSuccess": {
+		"message": "$EPISODES$ afleveringen en $MOVIES$ films gesynchroniseerd.",
+		"placeholders": {
+			"episodes": {
+				"content": "$1"
+			},
+			"movies": {
+				"content": "$2"
+			}
+		}
+	},
+	"home": {
+		"message": "Home"
+	},
+	"invalidTraktUrl": {
+		"message": "Geef een geldige Trakt URL in!"
+	},
+	"isThisWrong": {
+		"message": "Is dit fout?"
+	},
+	"itemNotSynced": {
+		"message": "Item niet gesynchroniseerd"
+	},
+	"itemSynced": {
+		"message": "Item gesynchroniseerd"
+	},
+	"itemsMissingWatchedDate": {
+		"message": "Sommige items missen de kijk datum. Los dit per item op of schakel de optie in om toe te voegen met datum van publicatie."
+	},
+	"lastSync": {
+		"message": "Laatste synchronisatie datum"
+	},
+	"lightTheme": {
+		"message": "Licht"
+	},
+	"loadHistoryError": {
+		"message": "Kon de historiek niet laden."
+	},
+	"loadImages": {
+		"message": "Laad afbeeldingen."
+	},
+	"loadImagesDescription": {
+		"message": "Indien deze optie uitgeschakeld is, worden afbeeldingen voor het spelende item en historische items niet geladen. Dit is handiger voor langzamere internetverbindingen, waarbij het laden van afbeeldingen de extensie aanzienlijk vertraagt."
+	},
+	"loadTraktHistoryError": {
+		"message": "Kon de Trakt historiek niet laden."
+	},
+	"loadingHistory": {
+		"message": "Geschiedenis laden"
+	},
+	"loadingSuggestions": {
+		"message": "Suggesties inladen"
+	},
+	"login": {
+		"message": "Log in met Trakt.tv"
+	},
+	"logout": {
+		"message": "Uitloggen"
+	},
+	"minPercentageWatched": {
+		"message": "Minimaal percentage bekeken."
+	},
+	"missingWatchedDate": {
+		"message": "Kijk datum vermist"
+	},
+	"missingWatchedDateDialogContent": {
+		"message": "Kies hoe je de vermiste kijk datum wil ingeven voor $TITLE$.",
+		"placeholders": {
+			"title": {
+				"content": "$1"
+			}
+		}
+	},
+	"missingWatchedDateDialogContentMultiple": {
+		"message": "Kies hoe je de vermiste kijk datum wil ingeven voor $ITEMS$.",
+		"placeholders": {
+			"items": {
+				"content": "$1"
+			}
+		}
+	},
+	"missingWatchedDateDialogDateLabel": {
+		"message": "Selecteer de datum"
+	},
+	"missingWatchedDateDialogInvalidDateLabel": {
+		"message": "Geef een geldige datum in!"
+	},
+	"no": {
+		"message": "Nee"
+	},
+	"noItemsSelected": {
+		"message": "Geen items geselecteerd. Selecteer er enkele en probeer het opnieuw."
+	},
+	"noServices": {
+		"message": "Geen streaming services ingeschakeld. Je kan deze inschakelen op de opties pagina."
+	},
+	"notAvailable": {
+		"message": "Niet beschikbaar"
+	},
+	"notFound": {
+		"message": "Niet Gevonden"
+	},
+	"notLoggedIn": {
+		"message": "Niet ingelogd"
+	},
+	"notLoggedInDescription": {
+		"message": "Het lijkt erop dat u niet bent ingelogd op deze service. Ga naar onderstaande pagina en log in voordat u opnieuw probeert te synchroniseren."
+	},
+	"notWatched": {
+		"message": "Niet Bekeken"
+	},
+	"notWatching": {
+		"message": "Kijk iets!"
+	},
+	"nowScrobbling": {
+		"message": "Aan het verwerken"
+	},
+	"on": {
+		"message": "Aan"
+	},
+	"options": {
+		"message": "Opties"
+	},
+	"profile": {
+		"message": "Profiel"
+	},
+	"profileDescription": {
+		"message": "Dit is het huidige profiel. Als dit niet het profiel is dat u wilt synchroniseren, schakel dan eerst uw profiel op de servicepagina."
+	},
+	"progress": {
+		"message": "Vooruitgang: $PROGRESS$%",
+		"placeholders": {
+			"progress": {
+				"content": "$1"
+			}
+		}
+	},
+	"reachedHistoryEnd": {
+		"message": "Einde van de historiek bereikt."
+	},
+	"reachedLastSyncDate": {
+		"message": "De laatste synchronisatie datum is bereikt. Als u de items voorbij dit punt wil laden, klik op de knop hieronder."
+	},
+	"readMore": {
+		"message": "Lees meer"
+	},
+	"recentAutoSync": {
+		"message": "Sommige items zijn onlangs automatisch gesynchroniseerd. Klik hier om te controleren of de juiste items werden gesynchroniseerd."
+	},
+	"recentAutoSyncError": {
+		"message": "Sommige items zijn onlangs niet automatisch gesynchroniseerd. Klik hier om ze te bekijken en te corrigeren."
+	},
+	"save": {
+		"message": "Opslaan"
+	},
+	"saveOptionFailed": {
+		"message": "Kon de optie niet opslaan."
+	},
+	"saveOptionSuccess": {
+		"message": "Optie opgeslagen."
+	},
+	"saveSuggestionFailed": {
+		"message": "Kon de suggestie niet opslaan."
+	},
+	"scrobblePaused": {
+		"message": "Verwerken gepauzeerd."
+	},
+	"scrobbleStarted": {
+		"message": "Verwerken gestart."
+	},
+	"scrobbleStopped": {
+		"message": "Verwerken gestopt."
+	},
+	"select": {
+		"message": "Selecteer:"
+	},
+	"selectAll": {
+		"message": "Alle"
+	},
+	"selectNone": {
+		"message": "Geen"
+	},
+	"selectService": {
+		"message": "Selecteer een streaming service om te synchroniseren:"
+	},
+	"sendReceiveSuggestions": {
+		"message": "Verstuur / ontvang correctie suggesties."
+	},
+	"sendReceiveSuggestionsDescription": {
+		"message": "Indien ingeschakeld zal telkens bij het updaten van een verkeerd item, de correctie worden doorgestuurd naar een Google Sheets databank. Op deze manier krijgen andere gebruikers een suggestie voor correcties. Deze optie is verplicht indien je zelf suggesties wil ontvangen."
+	},
+	"service": {
+		"message": "Service"
+	},
+	"serviceScrobble": {
+		"message": "Scrobble"
+	},
+	"serviceSync": {
+		"message": "Synchroniseren"
+	},
+	"services": {
+		"message": "Streaming Services"
+	},
+	"servicesDescription": {
+		"message": "Kies welke streaming services je wil inschakelen."
+	},
+	"showNotifications": {
+		"message": "Toon  browser notificaties."
+	},
+	"showNotificationsDescription": {
+		"message": "Indien ingeschakeld ontvang je browser notificaties wanneer het verwerken van gegevens (over een film of serie) wordt gestart of gestopt."
+	},
+	"suggestedBy": {
+		"message": "Gesuggereerd door $COUNT$ gebruikers",
+		"placeholders": {
+			"count": {
+				"content": "$1"
+			}
+		}
+	},
+	"suggestions": {
+		"message": "Suggesties"
+	},
+	"sync": {
+		"message": "Synchroniseer"
+	},
+	"syncing": {
+		"message": "Synchroniseren"
+	},
+	"systemTheme": {
+		"message": "Gebruik de systeem voorkeuren"
+	},
+	"theme": {
+		"message": "Thema"
+	},
+	"themeDescription": {
+		"message": "Kies welk thema te gebruiken."
+	},
+	"toggleAll": {
+		"message": "Omwisselen"
+	},
+	"unknown": {
+		"message": "Onbekend"
+	},
+	"use": {
+		"message": "Gebruik"
+	},
+	"useCurrentDate": {
+		"message": "Gebruik de huidige datum."
+	},
+	"useCustomDate": {
+		"message": "Gebruik een aangepaste datum."
+	},
+	"useReleaseDate": {
+		"message": "Gebruik datum van publicatie."
+	},
+	"watched": {
+		"message": "Bekeken op"
+	},
+	"yes": {
+		"message": "Ja"
+	}
+}

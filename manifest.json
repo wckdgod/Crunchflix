@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "CRUNCHFLIX",
+  "version": "3.8",
+  "description": "Trakt scrobbler for Netflix and Crunchyroll.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://*.netflix.com/*",
+    "*://*.crunchyroll.com/*",
+    "*://api.trakt.tv/*",
+    "*://api.themoviedb.org/*",
+    "*://image.tmdb.org/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.netflix.com/*",
+        "*://*.crunchyroll.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Ghost Scrobbler"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  },
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon128.png",
+    "128": "icon128.png"
+  }
+}

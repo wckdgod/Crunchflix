@@ -1,0 +1,455 @@
+{
+	"about": {
+		"message": "Informacje"
+	},
+	"aboutMessage": {
+		"message": "Wyślij swoją aktywność z ulubionych serwisów streamujących do Trakt.tv!"
+	},
+	"add": {
+		"message": "Dodaj"
+	},
+	"addDate": {
+		"message": "Dodaj datę"
+	},
+	"addMissingWatchedDateFailed": {
+		"message": "Nie udało się dodać brakującej daty."
+	},
+	"addWithReleaseDate": {
+		"message": "Dodaj z datą wydania."
+	},
+	"addWithReleaseDateMissing": {
+		"message": "Dodaj z datą wydania tylko dla elementów, które nie posiadają daty oglądania."
+	},
+	"allowRollbar": {
+		"message": "Pozwól Rollbar zbierać informacje o błędach."
+	},
+	"allowRollbarDescription": {
+		"message": "Z tą opcją włączona, gdy wystąpi błąd, informacje o niej zostaną zebrane i wysłane do nas, abyśmy mogli naprawić błąd szybciej i ulepszyć rozszerzenie. Ta informacja zawiera: datę i czas wystąpienia błędu, proces odtworzenia błędu, nazwę i wersję przeglądarki oraz nazwę systemu operacyjnego. Te dane nie są udostępniane innym serwisom."
+	},
+	"appDescription": {
+		"message": "Uniwersalna synchronizacja Trakt.tv."
+	},
+	"autoSync": {
+		"message": "Synchronizacja automatyczna"
+	},
+	"autoSyncNotActivated": {
+		"message": "Automatyczna synchronizacja nie została aktywowana. Musisz najpierw zsynchronizować ręcznie na stronie historii, aby można było zapisać ostatnią datę synchronizacji."
+	},
+	"autoSyncPageMessage": {
+		"message": "Są to elementy, które zostały automatycznie zsynchronizowane lub nie udało się ich automatycznie zsynchronizować od ostatniego przeglądu. Jeśli potrzebne są korekty, zastosuj je, wybierz elementy, które muszą być poprawione i kliknij przycisk Synchronizacji. Kiedy to zrobisz, pamięć podręczna zostanie usunięta, a te elementy nie pojawią się już na tej stronie. Jeśli nie są potrzebne żadne korekty, po prostu kliknij przycisk Wyczyść pamięć podręczną synchronizacji i to samo się stanie."
+	},
+	"autoSyncing": {
+		"message": "Automatyczna synchronizacja..."
+	},
+	"cancel": {
+		"message": "Anuluj"
+	},
+	"cannotSync": {
+		"message": "Nie można zsynchronizować elementów"
+	},
+	"clear": {
+		"message": "Clear"
+	},
+	"clearCaches": {
+		"message": "Wyczyść pamięć podręczną"
+	},
+	"clearCachesFailed": {
+		"message": "Nie udało się wyczyścić pamięci podręcznej."
+	},
+	"clearCachesSuccess": {
+		"message": "Pamięć podręczna wyczyszczona."
+	},
+	"clearLastSync": {
+		"message": "Wyczyść datę ostatniej synchronizacji"
+	},
+	"clearStorage": {
+		"message": "Wyczyść pamięć"
+	},
+	"clearStorageFailed": {
+		"message": "Nie udało się wyczyścić pamięci."
+	},
+	"clearStorageSuccess": {
+		"message": "Pamięć wyczyszczona."
+	},
+	"clearSyncCache": {
+		"message": "Wyczyść pamięć podręczną synchronizacji"
+	},
+	"close": {
+		"description": "This is the verb, as in 'to close'.",
+		"message": "Zamknij"
+	},
+	"confirmClearCachesMessage": {
+		"message": "Cała pamięć podręczna zostanie wyczyszczona, z wyjątkiem pamięci podręcznej synchronizacji."
+	},
+	"confirmClearCachesTitle": {
+		"message": "Wyczyść pamięć podręczną?"
+	},
+	"confirmClearLastSyncMessage": {
+		"message": "Musisz zsynchronizować ręcznie na stronie historii usługi strumieniowej, aby ponownie aktywować automatyczną synchronizację."
+	},
+	"confirmClearLastSyncTitle": {
+		"message": "Usunąć datę ostatniej synchronizacji dla $SERVICE$?",
+		"placeholders": {
+			"service": {
+				"content": "$1"
+			}
+		}
+	},
+	"confirmClearStorageMessage": {
+		"message": "Wszystkie opcje zostaną zresetowane do ich wartości domyślnych i będziesz musiał zalogować się ponownie."
+	},
+	"confirmClearStorageTitle": {
+		"message": "Wyczyść pamięć?"
+	},
+	"confirmClearSyncCacheMessage": {
+		"message": "Wszystkie elementy z bieżącej strony zostaną usunięte z pamięci podręcznej i nie będziesz mógł ich przeglądać."
+	},
+	"confirmClearSyncCacheTitle": {
+		"message": "Wyczyść pamięć podręczną synchronizacji?"
+	},
+	"continueLoading": {
+		"message": "Kontynuuj ładowanie"
+	},
+	"correct": {
+		"description": "This is the verb, as in 'to correct'.",
+		"message": "Popraw"
+	},
+	"correctItem": {
+		"message": "Popraw element"
+	},
+	"correctItemFailed": {
+		"message": "Nie udało się poprawić elementu."
+	},
+	"correctionDialogContent": {
+		"message": "Podaj poprawny adres URL Trakt dla $TITLE$ w polu poniżej.",
+		"placeholders": {
+			"title": {
+				"content": "$1"
+			}
+		}
+	},
+	"correctionDialogContentWithSuggestions": {
+		"message": "Podaj poprawny adres URL Trakt $TITLE$ w polu poniżej lub użyj jednej z sugestii.",
+		"placeholders": {
+			"title": {
+				"content": "$1"
+			}
+		}
+	},
+	"correctionDialogSyncedWarning": {
+		"message": "OSTRZEŻENIE: poprawiasz element, który został już zsynchronizowany. Jeśli będziesz kontynuować, poprzednio zsynchronizowany element zostanie usunięty z twojej historii Trakt."
+	},
+	"couldNotScrobble": {
+		"message": "Nie udało się skrobblować."
+	},
+	"currentCorrection": {
+		"message": "Currently corrected to"
+	},
+	"darkTheme": {
+		"message": "Ciemny"
+	},
+	"days": {
+		"message": "Dni"
+	},
+	"daysDescription": {
+		"message": "Jak często będzie się powtarzać automatyczna synchronizacja."
+	},
+	"errorNotification": {
+		"message": "Wystąpił błąd. :("
+	},
+	"errorNotificationLogin": {
+		"message": "Wygląda na to, że nie jesteś zalogowany. Otwórz rozszerzenie i zaloguj się na swoje konto Trakt."
+	},
+	"errorNotificationNotFound": {
+		"message": "O kurka! Nie mogliśmy znaleźć tego, co oglądasz w Trakt. Zostaw raport z tytułem."
+	},
+	"errorNotificationServers": {
+		"message": "Nie mogliśmy połączyć się z serwerami Trakt. Próbujemy to naprawić, spróbuj ponownie później."
+	},
+	"from": {
+		"message": "z"
+	},
+	"goToHistoryPage": {
+		"message": "Przejdź do strony Historia"
+	},
+	"grantCookies": {
+		"message": "Zaakceptuj \"ciasteczka\", aby rozszerzenie mogło działać z kontenerem Firefox."
+	},
+	"grantCookiesDescription": {
+		"message": "Z tą włączoną opcją, rozszerzenie będzie działać z kontenerem Firefox, pobierając \"ciasteczka\" z bieżącego kontenera, na którym się znajdujesz. Włącz tylko wtedy, gdy używasz kontenerów Firefox."
+	},
+	"hideSynced": {
+		"message": "Ukryj zsynchronizowane."
+	},
+	"history": {
+		"message": "Historia"
+	},
+	"historyFor": {
+		"message": "Historia dla"
+	},
+	"historySyncError": {
+		"message": "Nie udało się zsynchronizować historii."
+	},
+	"historySyncSuccess": {
+		"message": "Zsynchronizowano $EPISODES$ odcinków i $MOVIES$ filmów.",
+		"placeholders": {
+			"episodes": {
+				"content": "$1"
+			},
+			"movies": {
+				"content": "$2"
+			}
+		}
+	},
+	"home": {
+		"message": "Strona główna"
+	},
+	"invalidTraktUrl": {
+		"message": "Podaj poprawny adres URL Trakt!"
+	},
+	"isThisWrong": {
+		"message": "Czy to jest niewłaściwe?"
+	},
+	"itemNotSynced": {
+		"message": "Element nie zsynchronizowany"
+	},
+	"itemSynced": {
+		"message": "Element nie zsynchronizowany"
+	},
+	"itemsMissingWatchedDate": {
+		"message": "Niektórym elementom brakuje daty obejrzenia. Określ każdy tytuł ręcznie lub włącz opcję dodawania daty wydania i spróbuj ponownie."
+	},
+	"lastSync": {
+		"message": "Data ostatniej synchronizacji"
+	},
+	"lightTheme": {
+		"message": "Jasny"
+	},
+	"loadHistoryError": {
+		"message": "Nie udało się zsynchronizować historii."
+	},
+	"loadImages": {
+		"message": "Load images."
+	},
+	"loadImagesDescription": {
+		"message": "With this option disabled, images for the scrobbling item and for the history items will not be loaded. This is useful for slower connections, where loading images significantly slows down the extension."
+	},
+	"loadTraktHistoryError": {
+		"message": "Nie udało się załadować historii Trakt."
+	},
+	"loadingHistory": {
+		"message": "Wczytuje historię"
+	},
+	"loadingSuggestions": {
+		"message": "Ładowanie propozycji"
+	},
+	"login": {
+		"message": "Zaloguj się przy pomocy Trakt.tv"
+	},
+	"logout": {
+		"message": "Wyloguj się"
+	},
+	"minPercentageWatched": {
+		"message": "Minimalny procent oglądania."
+	},
+	"missingWatchedDate": {
+		"message": "Brak daty obejrzenia"
+	},
+	"missingWatchedDateDialogContent": {
+		"message": "Wybierz, jak chcesz dodać brakującą datę obejrzeń dla $TITLE$.",
+		"placeholders": {
+			"title": {
+				"content": "$1"
+			}
+		}
+	},
+	"missingWatchedDateDialogContentMultiple": {
+		"message": "Wybierz, jak chcesz dodać brakującą datę obejrzeń dla $ITEMS$ elementów.",
+		"placeholders": {
+			"items": {
+				"content": "$1"
+			}
+		}
+	},
+	"missingWatchedDateDialogDateLabel": {
+		"message": "Wybierz datę"
+	},
+	"missingWatchedDateDialogInvalidDateLabel": {
+		"message": "Wprowadź prawidłową datę!"
+	},
+	"no": {
+		"message": "Nie"
+	},
+	"noItemsSelected": {
+		"message": "Nie wybrano żadnych elementów. Wybierz jakieś i spróbuj ponownie."
+	},
+	"noServices": {
+		"message": "Brak włączonych serwisów streamingowych. Możesz włączyć je na stronie stronie opcji."
+	},
+	"notAvailable": {
+		"message": "Niedostępne"
+	},
+	"notFound": {
+		"message": "Nie znaleziono"
+	},
+	"notLoggedIn": {
+		"message": "Nie zalogowano"
+	},
+	"notLoggedInDescription": {
+		"message": "Wygląda na to, że nie jesteś zalogowany do tego serwisu. Przejdź na stronę poniżej i zaloguj się przed próbą synchronizacji."
+	},
+	"notWatched": {
+		"message": "Nie obejrzane"
+	},
+	"notWatching": {
+		"message": "Oglądaj coś!"
+	},
+	"nowScrobbling": {
+		"message": "Scrobblowanie"
+	},
+	"on": {
+		"message": "Włączone"
+	},
+	"options": {
+		"message": "Opcje"
+	},
+	"profile": {
+		"message": "Profil"
+	},
+	"profileDescription": {
+		"message": "To jest bieżący profil. Jeśli nie jest to profil, który chcesz synchronizować, przełącz profil na stronie serwisu."
+	},
+	"progress": {
+		"message": "Postęp: $PROGRESS$%",
+		"placeholders": {
+			"progress": {
+				"content": "$1"
+			}
+		}
+	},
+	"reachedHistoryEnd": {
+		"message": "Osiągnięto koniec historii."
+	},
+	"reachedLastSyncDate": {
+		"message": "Osiągnięto ostatnią datę synchronizacji. Jeśli chcesz załadować stasze elementy, kliknij przycisk poniżej."
+	},
+	"readMore": {
+		"message": "Czytaj dalej"
+	},
+	"recentAutoSync": {
+		"message": "Niektóre elementy zostały ostatnio automatycznie zsynchronizowane. Kliknij tutaj, aby przejrzeć je i upewnić się, że zostały poprawnie zsynchronizowane."
+	},
+	"recentAutoSyncError": {
+		"message": "Niedawno nie udało się automatycznie zsynchronizować. Kliknij tutaj, aby je przejrzeć i poprawić."
+	},
+	"save": {
+		"message": "Zapisz"
+	},
+	"saveOptionFailed": {
+		"message": "Nie udało się zapisać."
+	},
+	"saveOptionSuccess": {
+		"message": "Ustawienia zapisane."
+	},
+	"saveSuggestionFailed": {
+		"message": "Nie udało się zapisać sugestii."
+	},
+	"scrobblePaused": {
+		"message": "Scrobbling wstrzymany."
+	},
+	"scrobbleStarted": {
+		"message": "Scrobbling rozpoczęty."
+	},
+	"scrobbleStopped": {
+		"message": "Scrobbling zatrzymany."
+	},
+	"select": {
+		"message": "Wybierz:"
+	},
+	"selectAll": {
+		"message": "Wszystko"
+	},
+	"selectNone": {
+		"message": "Żadne"
+	},
+	"selectService": {
+		"message": "Wybierz serwis streamingowy do synchronizacji:"
+	},
+	"sendReceiveSuggestions": {
+		"message": "Wyślij / odbierz propozycje korekty."
+	},
+	"sendReceiveSuggestionsDescription": {
+		"message": "Z tą włączoną opcją, kiedy tylko zaktualizujesz błędny tytuł, korekta zostanie wysłana do bazy danych Google Cloud, aby inni użytkownicy mogli otrzymywać sugestie korekty. Ta opcja jest również wymagana do otrzymania tych sugestii dotyczących korekty."
+	},
+	"service": {
+		"message": "Serwis"
+	},
+	"serviceScrobble": {
+		"message": "Scrobblowanie"
+	},
+	"serviceSync": {
+		"message": "Synchronizacja"
+	},
+	"services": {
+		"message": "Serwisy streamingowe"
+	},
+	"servicesDescription": {
+		"message": "Wybierz które serwisy streamingowe mają być włączone."
+	},
+	"showNotifications": {
+		"message": "Pokazuj powiadomienia przeglądarki."
+	},
+	"showNotificationsDescription": {
+		"message": "Z tą opcją będziesz otrzymywać powiadomienia przeglądarki za każdym razem, gdy zaczniesz lub zatrzymaj scrobbing."
+	},
+	"suggestedBy": {
+		"message": "Sugerowane przez $COUNT$ użytkowników",
+		"placeholders": {
+			"count": {
+				"content": "$1"
+			}
+		}
+	},
+	"suggestions": {
+		"message": "Sugestie"
+	},
+	"sync": {
+		"message": "Synchronizacja"
+	},
+	"syncing": {
+		"message": "Synchronizacja"
+	},
+	"systemTheme": {
+		"message": "Użyj ustawień systemowych"
+	},
+	"theme": {
+		"message": "Motyw"
+	},
+	"themeDescription": {
+		"message": "Wybierz schemat kolorów."
+	},
+	"toggleAll": {
+		"message": "Przełącz"
+	},
+	"unknown": {
+		"message": "Nieznane"
+	},
+	"use": {
+		"message": "Użyj"
+	},
+	"useCurrentDate": {
+		"message": "Użyj dzisiejszej daty."
+	},
+	"useCustomDate": {
+		"message": "Użyj innej daty."
+	},
+	"useReleaseDate": {
+		"message": "Użyj daty wydania."
+	},
+	"watched": {
+		"message": "Obejrzane"
+	},
+	"yes": {
+		"message": "Tak"
+	}
+}

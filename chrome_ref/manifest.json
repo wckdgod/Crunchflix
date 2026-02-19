@@ -1,0 +1,114 @@
+{
+  "name": "Universal Trakt Scrobbler",
+  "version": "0.6.0",
+  "description": "__MSG_appDescription__",
+  "icons": {
+    "16": "images/uts-icon-16.png",
+    "128": "images/uts-icon-128.png"
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "trakt.js"
+      ],
+      "matches": [
+        "*://*.trakt.tv/apps*"
+      ]
+    }
+  ],
+  "default_locale": "en",
+  "manifest_version": 3,
+  "background": {
+    "service_worker": "background.js"
+  },
+  "optional_permissions": [
+    "notifications"
+  ],
+  "optional_host_permissions": [
+    "*://api.rollbar.com/*",
+    "*://*.primevideo.com/*",
+    "*://*.amazon.com/*",
+    "*://*.amazon.co.jp/*",
+    "*://*.amazon.co.uk/*",
+    "*://*.amazon.com.au/*",
+    "*://*.amazon.de/*",
+    "*://*.amcplus.com/*",
+    "*://*.amcn.com/*",
+    "*://*.www.crave.ca/*",
+    "*://*.bellmedia.ca/*",
+    "*://*.crunchyroll.com/*",
+    "*://*.discoveryplus.com/*",
+    "*://*.disneyplus.com/*",
+    "*://*.go3.lv/*",
+    "*://*.goplay.be/*",
+    "*://*.hbogo.co.th/*",
+    "*://*.hbogoasia.com/*",
+    "*://*.hbogo.hu/*",
+    "*://*.hbogo.cz/*",
+    "*://*.hbogo.sk/*",
+    "*://*.hbogo.ro/*",
+    "*://*.hbogo.ru/*",
+    "*://*.hbogo.pl/*",
+    "*://*.hbogo.hr/*",
+    "*://*.hbogo.rs/*",
+    "*://*.hbogo.si/*",
+    "*://*.hbogo.mk/*",
+    "*://*.hbogo.me/*",
+    "*://*.hbogo.bg/*",
+    "*://*.hbogo.ba/*",
+    "*://*.hbogo.eu/*",
+    "*://*.hbo.com/*",
+    "*://*.hbomax.com/*",
+    "*://*.www.hotstar.com/*",
+    "*://*.kijk.nl/*",
+    "*://*.mubi.com/*",
+    "*://*.netflix.com/*",
+    "*://*.nrk.no/*",
+    "*://*.player.pl/*",
+    "*://*.polsatboxgo.pl/*",
+    "*://*.polsatgo.pl/*",
+    "*://*.skyshowtime.com/*",
+    "*://*.starplus.com/*",
+    "*://*.streamz.be/*",
+    "*://*.tet.plus/*",
+    "*://*.tv2.no/*",
+    "*://*.viaplay.com/*",
+    "*://*.viaplay.no/*",
+    "*://*.viaplay.se/*",
+    "*://*.viaplay.dk/*",
+    "*://*.viaplay.fi/*",
+    "*://*.viaplay.is/*",
+    "*://*.viaplay.pl/*",
+    "*://*.viaplay.ee/*",
+    "*://*.viaplay.lv/*",
+    "*://*.viaplay.lt/*",
+    "*://*.www.vidio.com/*",
+    "*://*.vrtnu.be/*",
+    "*://*.vrtmax.be/*",
+    "*://*.vrt.be/vrtmax/*",
+    "*://*.vtmgo.be/*",
+    "*://*.vtm.be/vtmgo/*",
+    "*://*.wakanim.tv/*"
+  ],
+  "permissions": [
+    "alarms",
+    "identity",
+    "scripting",
+    "storage",
+    "unlimitedStorage"
+  ],
+  "host_permissions": [
+    "*://*.trakt.tv/*",
+    "*://*.themoviedb.org/*",
+    "*://*.uts.rafaelgomes.xyz/*"
+  ],
+  "action": {
+    "default_icon": {
+      "19": "images/uts-icon-19.png",
+      "38": "images/uts-icon-38.png"
+    },
+    "default_popup": "popup.html",
+    "default_title": "Universal Trakt Scrobbler"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAj9BiceQUMPjMFjSC26NNsmhV4jqiSJOwUfKN4a9TJffUTDhKCRGsfvkKwzHRK8t/B5/KaD06QLL4W85wXJZlFGlW7cOzG5FaMPKeU/NZ9jE0HFdPSkxhSjlX1+Cmuo6kLPmdIqXN6OWsh9QZro7fNsZtBfjQN9Z7plgJTK0w2liqd/iMNqbIfOqXP75ov5WT6F2slrMATe6uN4Ug/eH7CUU8uARHuO5czVjpcHWaCoqw8gO2BR3ixwhUjXjt+BqnaOQOkQRYsPhZwp59APluEcdbn8BfMsWaV1o1BoNXMkKMOcQUJPVQ2DHEk7DnW7bm4aUoM8V7IBC659tFs5pvzQIDAQAB"
+}

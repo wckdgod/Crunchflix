@@ -1,0 +1,455 @@
+{
+	"about": {
+		"message": "Informazioni"
+	},
+	"aboutMessage": {
+		"message": "Invia le tue attività dai tuoi servizi di streaming preferiti a Trakt.tv!"
+	},
+	"add": {
+		"message": "Aggiungi"
+	},
+	"addDate": {
+		"message": "Aggiungi la data"
+	},
+	"addMissingWatchedDateFailed": {
+		"message": "Impossibile aggiungere la data mancante."
+	},
+	"addWithReleaseDate": {
+		"message": "Aggiungi con la data di uscita."
+	},
+	"addWithReleaseDateMissing": {
+		"message": "Aggiungi gli elementi che mancano della data di riproduzione con la data di rilascio."
+	},
+	"allowRollbar": {
+		"message": "Consenti a Rollbar di raccogliere informazioni sui bug."
+	},
+	"allowRollbarDescription": {
+		"message": "Con questa opzione abilitata, ogni volta che si verifica un bug, le informazioni su di esso saranno raccolte e inviate a noi, in modo che possiamo ripararlo il più velocemente possibile e migliorare l'estensione. Queste informazioni includono: quando il bug si è verificato, il traceback del bug, il nome e la versione del browser, il nome del vostro sistema operativo. Questi dati non sono condivisi con nessun altro servizio."
+	},
+	"appDescription": {
+		"message": "Un sincronizzatore universale per Trakt.tv."
+	},
+	"autoSync": {
+		"message": "Sincronizzazione automatica"
+	},
+	"autoSyncNotActivated": {
+		"message": "Sincronizzazione automatica non attivata. È necessario prima sincronizzare manualmente nella pagina della cronologia dell'esterno, in modo che l'ultima data di sincronizzazione possa essere salvata."
+	},
+	"autoSyncPageMessage": {
+		"message": "Questi sono gli elementi che sono stati sincronizzati automaticamente o la cui sincronizzazione non è riuscita automaticamente dall'ultima volta che hai visitato questa pagina. Se sono necessarie correzioni, possono essere applicate: seleziona gli elementi che devono essere corretti e fai clic sul pulsante Sincronizza. Quando esegui questa operazione la cache verrà eliminata e questi elementi non appariranno più in questa pagina. Se non sono necessarie correzioni, basta fare clic sul pulsante Cancella la cache di sincronizzazione."
+	},
+	"autoSyncing": {
+		"message": "Sincronizzazione automatica..."
+	},
+	"cancel": {
+		"message": "Annulla"
+	},
+	"cannotSync": {
+		"message": "Impossibile sincronizzare gli elementi"
+	},
+	"clear": {
+		"message": "Pulisci"
+	},
+	"clearCaches": {
+		"message": "Cancella i dati salvati nella cache"
+	},
+	"clearCachesFailed": {
+		"message": "Si è verificato un errore sconosciuto durante la cancellazione della cache."
+	},
+	"clearCachesSuccess": {
+		"message": "I dati della cache sono stati cancellati correttamente."
+	},
+	"clearLastSync": {
+		"message": "Cancella la data dell'ultima sincronizzazione"
+	},
+	"clearStorage": {
+		"message": "Cancella tutti i dati"
+	},
+	"clearStorageFailed": {
+		"message": "Si è verificato un errore sconosciuto durante la cancellazione dei dati."
+	},
+	"clearStorageSuccess": {
+		"message": "Tutti i dati sono stati cancellati correttamente."
+	},
+	"clearSyncCache": {
+		"message": "Cancella la cache di sincronizzazione"
+	},
+	"close": {
+		"description": "This is the verb, as in 'to close'.",
+		"message": "Chiudi"
+	},
+	"confirmClearCachesMessage": {
+		"message": "Tutte le cache verranno cancellate, tranne la cache di sincronizzazione."
+	},
+	"confirmClearCachesTitle": {
+		"message": "Vuoi cancellare tutti i dati della cache?"
+	},
+	"confirmClearLastSyncMessage": {
+		"message": "Per riattivare la sincronizzazione automatica è necessario eseguire una sincronizzazione manuale nella pagina della cronologia del servizio di streaming."
+	},
+	"confirmClearLastSyncTitle": {
+		"message": "Eliminare l'ultima data di sincronizzazione per $SERVICE$?",
+		"placeholders": {
+			"service": {
+				"content": "$1"
+			}
+		}
+	},
+	"confirmClearStorageMessage": {
+		"message": "Tutte le opzioni saranno reimpostate ai loro valori predefiniti e si dovrà effettuare nuovamente l'accesso."
+	},
+	"confirmClearStorageTitle": {
+		"message": "Cancellare tutti i dati salvati?"
+	},
+	"confirmClearSyncCacheMessage": {
+		"message": "Tutti gli elementi presenti nella pagina corrente saranno rimossi dalla cache e non potrai più rivederli."
+	},
+	"confirmClearSyncCacheTitle": {
+		"message": "Eliminare la cache di sincronizzazione?"
+	},
+	"continueLoading": {
+		"message": "Continua il caricamento"
+	},
+	"correct": {
+		"description": "This is the verb, as in 'to correct'.",
+		"message": "Correggi"
+	},
+	"correctItem": {
+		"message": "Correggi l'elemento"
+	},
+	"correctItemFailed": {
+		"message": "Impossibile correggere l'elemento."
+	},
+	"correctionDialogContent": {
+		"message": "Inserisci l'URL di Trakt corretto per $TITLE$ nel campo sottostante.",
+		"placeholders": {
+			"title": {
+				"content": "$1"
+			}
+		}
+	},
+	"correctionDialogContentWithSuggestions": {
+		"message": "Inserisci l'URL Trakt corretto per $TITLE$ nel campo sottostante oppure usa uno dei suggerimenti.",
+		"placeholders": {
+			"title": {
+				"content": "$1"
+			}
+		}
+	},
+	"correctionDialogSyncedWarning": {
+		"message": "ATTENZIONE: Stai correggendo un elemento già sincronizzato. Se procedi, l'elemento precedentemente sincronizzato sarà rimosso dalla tua cronologia di Trakt."
+	},
+	"couldNotScrobble": {
+		"message": "Impossibile registrare le preferenze."
+	},
+	"currentCorrection": {
+		"message": "Attualmente corretto a"
+	},
+	"darkTheme": {
+		"message": "Scuro"
+	},
+	"days": {
+		"message": "Giorni"
+	},
+	"daysDescription": {
+		"message": "Quanto spesso si verificherà la sincronizzazione automatica."
+	},
+	"errorNotification": {
+		"message": "Si è verificato un errore. 🙁"
+	},
+	"errorNotificationLogin": {
+		"message": "Sembra che tu non abbia effettuato l'accesso. Per favore apri l'estensione e accedi con il tuo account Trakt."
+	},
+	"errorNotificationNotFound": {
+		"message": "Perdincibacco! Non siamo riusciti a trovare in Trakt quello che stai guardando. Per favore, lascia un reporf6 con il titolo dell'elemento."
+	},
+	"errorNotificationServers": {
+		"message": "Non siamo riusciti a contattare i server di Trakt. Stiamo cercando di risolvere, per favore riprova più tardi."
+	},
+	"from": {
+		"message": "da"
+	},
+	"goToHistoryPage": {
+		"message": "Vai alla pagina della cronologia"
+	},
+	"grantCookies": {
+		"message": "Concedi l'autorizzazione all'uso dei cookie in modo che l'estensione possa funzionare con Firefox Container."
+	},
+	"grantCookiesDescription": {
+		"message": "Con questa opzione abilitata, l'estensione funzionerà con Firefox Containers, recuperando i cookie dall'account a cui si è effettuato l'accesso. Attivarla solo se si utilizza Firefox Container."
+	},
+	"hideSynced": {
+		"message": "Nascondi sincronizzati."
+	},
+	"history": {
+		"message": "Cronologia"
+	},
+	"historyFor": {
+		"message": "Cronologia per"
+	},
+	"historySyncError": {
+		"message": "Impossibile sincronizzare la cronologia."
+	},
+	"historySyncSuccess": {
+		"message": "$EPISODES$ episodi e $MOVIES$ film sincronizzati.",
+		"placeholders": {
+			"episodes": {
+				"content": "$1"
+			},
+			"movies": {
+				"content": "$2"
+			}
+		}
+	},
+	"home": {
+		"message": "Home"
+	},
+	"invalidTraktUrl": {
+		"message": "Si prega di inserire un URL Trakt valido!"
+	},
+	"isThisWrong": {
+		"message": "Questo è sbagliato?"
+	},
+	"itemNotSynced": {
+		"message": "Elemento non sincronizzato"
+	},
+	"itemSynced": {
+		"message": "Elemento sincronizzato correttamente"
+	},
+	"itemsMissingWatchedDate": {
+		"message": "Alcuni elementi mancano della data di riproduzione. Risolvi ogni errore manualmente o abilita l'opzione che ti permette di aggiungerlo con data di rilascio e riprova."
+	},
+	"lastSync": {
+		"message": "Data ultima sincronizzazione"
+	},
+	"lightTheme": {
+		"message": "Chiaro"
+	},
+	"loadHistoryError": {
+		"message": "Impossibile caricare la cronologia di riproduzione."
+	},
+	"loadImages": {
+		"message": "Load images."
+	},
+	"loadImagesDescription": {
+		"message": "With this option disabled, images for the scrobbling item and for the history items will not be loaded. This is useful for slower connections, where loading images significantly slows down the extension."
+	},
+	"loadTraktHistoryError": {
+		"message": "Impossibile caricare la cronologia di Trakt."
+	},
+	"loadingHistory": {
+		"message": "Caricamento cronologia..."
+	},
+	"loadingSuggestions": {
+		"message": "Caricamento dei suggerimenti"
+	},
+	"login": {
+		"message": "Accedi con il tuo account Trakt"
+	},
+	"logout": {
+		"message": "Disconnetti"
+	},
+	"minPercentageWatched": {
+		"message": "Percentuale minima di riproduzione."
+	},
+	"missingWatchedDate": {
+		"message": "Data di riproduzione mancante"
+	},
+	"missingWatchedDateDialogContent": {
+		"message": "Scegliere come si desidera aggiungere la data di riproduzione mancante per $TITLE$.",
+		"placeholders": {
+			"title": {
+				"content": "$1"
+			}
+		}
+	},
+	"missingWatchedDateDialogContentMultiple": {
+		"message": "Scegliere come si desidera aggiungere la data di riproduzione mancante per $ITEMS$ elementi.",
+		"placeholders": {
+			"items": {
+				"content": "$1"
+			}
+		}
+	},
+	"missingWatchedDateDialogDateLabel": {
+		"message": "Seleziona la data"
+	},
+	"missingWatchedDateDialogInvalidDateLabel": {
+		"message": "Inserisci una data valida!"
+	},
+	"no": {
+		"message": "No"
+	},
+	"noItemsSelected": {
+		"message": "Nessun elemento selezionato. Seleziona alcuni elementi e riprova."
+	},
+	"noServices": {
+		"message": "Nessun servizio di streaming abilitato. È possibile abilitare i servizi di streaming nella pagina delle opzioni."
+	},
+	"notAvailable": {
+		"message": "Non disponibile"
+	},
+	"notFound": {
+		"message": "Non ho trovato l'elemento"
+	},
+	"notLoggedIn": {
+		"message": "Accesso non effettuato"
+	},
+	"notLoggedInDescription": {
+		"message": "Sembra che tu non abbia effettuato l'accesso a questo servizio. Vai alla pagina sottostante e accedi prima di provare a sincronizzare."
+	},
+	"notWatched": {
+		"message": "Non riprodotto"
+	},
+	"notWatching": {
+		"message": "Guarda qualcosa!"
+	},
+	"nowScrobbling": {
+		"message": "Sincronizzazione in corso"
+	},
+	"on": {
+		"message": "Attivo"
+	},
+	"options": {
+		"message": "Impostazioni"
+	},
+	"profile": {
+		"message": "Profilo"
+	},
+	"profileDescription": {
+		"message": "Si tratta del profilo corrente. \nSe questo non è il profilo che si desidera sincronizzare, cambiarlo nella pagina del servizio."
+	},
+	"progress": {
+		"message": "Avanzamento: $PROGRESS$%",
+		"placeholders": {
+			"progress": {
+				"content": "$1"
+			}
+		}
+	},
+	"reachedHistoryEnd": {
+		"message": "Raggiunta la fine della cronologia."
+	},
+	"reachedLastSyncDate": {
+		"message": "È stata aggiunta l'ultima data di sincronizzazione. Se si desidera caricare elementi oltre questo punto, premer sul pulsante qui sotto."
+	},
+	"readMore": {
+		"message": "Approfondisci"
+	},
+	"recentAutoSync": {
+		"message": "Alcuni elementi sono stati recentemente sincronizzati automaticamente. Fare clic qui per controllarli e assicurarsi che la sincronizzazione sia avvenuta correttamente."
+	},
+	"recentAutoSyncError": {
+		"message": "Recentemente alcuni elementi non sono stati sincronizzati automaticamente. Clicca qui per controllare."
+	},
+	"save": {
+		"message": "Salva"
+	},
+	"saveOptionFailed": {
+		"message": "Impossibile salvare le opzioni."
+	},
+	"saveOptionSuccess": {
+		"message": "Opzioni salvate."
+	},
+	"saveSuggestionFailed": {
+		"message": "Impossibile salvare il suggerimento."
+	},
+	"scrobblePaused": {
+		"message": "Salvataggio delle preferenze sospeso."
+	},
+	"scrobbleStarted": {
+		"message": "Salvataggio delle preferenze iniziato."
+	},
+	"scrobbleStopped": {
+		"message": "Salvataggio delle preferenze interrotto."
+	},
+	"select": {
+		"message": "Seleziona:"
+	},
+	"selectAll": {
+		"message": "Tutto"
+	},
+	"selectNone": {
+		"message": "Nulla"
+	},
+	"selectService": {
+		"message": "Seleziona un servizio di streaming da cui sincronizzare:"
+	},
+	"sendReceiveSuggestions": {
+		"message": "Invia o ricevi suggerimenti per la correzione."
+	},
+	"sendReceiveSuggestionsDescription": {
+		"message": "Con questa opzione abilitata, ogni volta che si aggiorna un elemento sbagliato, la correzione verrà inviata a un database di Google Cloud in modo che altri utenti possano ricevere suggerimenti di correzione. Questa opzione è necessaria anche per ricevere tali suggerimenti di correzione."
+	},
+	"service": {
+		"message": "Servizio"
+	},
+	"serviceScrobble": {
+		"message": "Salvataggio delle preferenze di riproduzione"
+	},
+	"serviceSync": {
+		"message": "Sincronizza"
+	},
+	"services": {
+		"message": "Servizi di streaming"
+	},
+	"servicesDescription": {
+		"message": "Scegli quali servizi di streaming abilitare."
+	},
+	"showNotifications": {
+		"message": "Ricevi notifiche del browser."
+	},
+	"showNotificationsDescription": {
+		"message": "Con questa opzione abilitata, riceverai le notifiche del browser ogni volta che inizi o smetti di riprodurre qualcosa."
+	},
+	"suggestedBy": {
+		"message": "Suggerito da $COUNT$ utenti",
+		"placeholders": {
+			"count": {
+				"content": "$1"
+			}
+		}
+	},
+	"suggestions": {
+		"message": "Suggerimenti"
+	},
+	"sync": {
+		"message": "Sincronizza"
+	},
+	"syncing": {
+		"message": "Sincronizzazione in corso..."
+	},
+	"systemTheme": {
+		"message": "Usa le preferenze di sistema"
+	},
+	"theme": {
+		"message": "Tema"
+	},
+	"themeDescription": {
+		"message": "Scegli il tema da utilizzare."
+	},
+	"toggleAll": {
+		"message": "Attiva/Disattiva"
+	},
+	"unknown": {
+		"message": "Sconosciuto"
+	},
+	"use": {
+		"message": "Usa"
+	},
+	"useCurrentDate": {
+		"message": "Utilizza la data corrente."
+	},
+	"useCustomDate": {
+		"message": "Usa una data personalizzata."
+	},
+	"useReleaseDate": {
+		"message": "Usa la data di rilascio."
+	},
+	"watched": {
+		"message": "Guardato il"
+	},
+	"yes": {
+		"message": "Sì"
+	}
+}

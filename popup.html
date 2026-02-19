@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRUNCHFLIX</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+
+<body>
+
+    <!-- Auth Section (Disconnected) -->
+    <div id="auth-section">
+        <h2>CRUNCHFLIX</h2>
+        <div class="status" id="status">Not connected to Trakt</div>
+        <button id="connectBtn">Connect to Trakt</button>
+        <button id="settingsBtn" class="secondary-btn" style="margin-top: 10px; background-color: #333;">Configure API
+            Keys</button>
+    </div>
+
+    <!-- Code Display Section -->
+    <div id="code-section" class="hidden">
+        <p>1. Visit <a href="#" id="verificationUrl" target="_blank">trakt.tv/activate</a></p>
+        <p class="step-label">2. Enter Code:</p>
+        <h3 id="userCode">...</h3>
+        <div class="status">Waiting for authorization...</div>
+    </div>
+
+    <!-- Connected UI (Aesthetic) -->
+    <div id="connected-section" class="hidden">
+
+        <!-- Hero: Poster & Status -->
+        <div class="hero">
+            <img id="hero-bg" class="hero-bg" src="" alt="">
+            <div class="hero-content">
+                <img id="np-image" class="poster" src="" alt="No Poster">
+                <div class="info">
+                    <div id="np-title" class="title">Nothing Playing</div>
+                    <div id="np-status" class="status-badge stopped">Ready to Scrobble</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Synopsis -->
+        <div id="synopsis-section" class="synopsis-section">
+            <p id="np-synopsis" class="synopsis"></p>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <button id="fixMatchBtn">Wrong Show? Fix Match</button>
+
+            <!-- Fix Match Modal -->
+            <div id="fix-section" class="hidden">
+                <p class="label">Paste Trakt URL or ID:</p>
+                <input type="text" id="fixInput" placeholder="e.g. sentenced-to-be-a-hero">
+                <div class="btn-row">
+                    <button id="fixSaveBtn">Save</button>
+                    <button id="fixCancelBtn">Cancel</button>
+                </div>
+                <div id="fix-status"></div>
+            </div>
+
+            <button id="disconnectBtn">Disconnect</button>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>
