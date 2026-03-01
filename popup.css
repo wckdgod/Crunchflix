@@ -33,21 +33,26 @@
     --dynamic-accent: #E50914;
 }
 
-html,
+html {
+    width: 360px;
+    height: 520px;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
 body {
     width: 360px;
     height: 520px;
-    background: #000;
+    background: transparent;
     color: var(--text-primary);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     margin: 0;
     padding: 0;
     overflow: hidden;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     -webkit-user-select: none;
     user-select: none;
+    position: relative;
 }
 
 ::-webkit-scrollbar {
@@ -100,10 +105,7 @@ body {
     position: relative;
     z-index: 10;
     width: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
+    height: 100%;
 }
 
 /* Auth Panels */
@@ -145,33 +147,25 @@ body {
     margin-bottom: 12px;
 }
 
-/* The Floating App Card */
-/* w-[340px] bg-zinc-950/60 backdrop-blur-2xl rounded-[28px] overflow-hidden shadow-2xl font-sans text-white border border-white/10 */
+/* The App Card — fills the entire popup */
 .app-card {
-    width: 344px;
-    height: 504px;
-    margin: 8px;
-    background: rgba(9, 9, 11, 0.6);
-    -webkit-backdrop-filter: blur(40px);
-    /* 2xl blur */
-    backdrop-filter: blur(40px);
-    border: 1px solid var(--white-10);
-    border-radius: 28px;
+    width: 100%;
+    height: 100%;
+    background: rgba(9, 9, 11, 0.85);
     overflow: hidden;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    /* shadow-2xl */
     display: flex;
     flex-direction: column;
+    position: relative;
 }
 
-/* 1. Header (Poster Area) */
-/* relative h-52 w-full */
+/* 1. Full-Bleed Poster Background */
 .poster-header {
-    position: relative;
-    height: 220px;
-    /* Slightly taller for larger screen */
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
-    flex-shrink: 0;
+    height: 100%;
+    z-index: 0;
 }
 
 /* w-full h-full object-cover */
@@ -180,14 +174,19 @@ body {
     height: 100%;
     object-fit: cover;
     opacity: 0;
-    transition: opacity 0.5s ease;
+    transition: opacity 0.8s ease;
 }
 
-/* absolute inset-0 bg-gradient-to-t from-zinc-950/90 via-zinc-950/40 to-transparent */
+/* Gradient overlay: transparent top, dark bottom for text readability */
 .poster-gradient {
     position: absolute;
     inset: 0;
-    background: linear-gradient(to top, rgba(9, 9, 11, 0.9) 0%, rgba(9, 9, 11, 0.4) 50%, rgba(9, 9, 11, 0) 100%);
+    background: linear-gradient(to bottom,
+            rgba(9, 9, 11, 0.1) 0%,
+            rgba(9, 9, 11, 0.3) 30%,
+            rgba(9, 9, 11, 0.7) 55%,
+            rgba(9, 9, 11, 0.95) 75%,
+            rgba(9, 9, 11, 1) 100%);
     pointer-events: none;
 }
 
@@ -242,15 +241,13 @@ body {
 }
 
 
-/* 2. Content Area */
+/* 2. Content Area — sits on top of the poster */
 .app-content {
-    padding: 24px 28px;
-    /* Slightly more side padding for 360 width */
-    padding-top: 0;
-    margin-top: -32px;
+    padding: 0 28px 20px 28px;
     position: relative;
     z-index: 10;
-    flex-grow: 1;
+    margin-top: auto;
+    /* Push content to the bottom */
     display: flex;
     flex-direction: column;
 }

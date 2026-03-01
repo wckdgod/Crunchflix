@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync History - CRUNCHFLIX</title>
+    <link rel="stylesheet" href="history.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="brand">
+                <h1>CRUNCHFLIX</h1>
+                <span>History Manager</span>
+            </div>
+            <div class="actions">
+                <button id="refresh-netflix" class="btn-secondary">Refresh Netflix Data</button>
+                <button id="sync-trakt" class="btn-primary">Sync Selected to Trakt</button>
+            </div>
+        </header>
+
+        <section class="stats-grid">
+            <div class="stat-card">
+                <span id="total-found" class="stat-value">0</span>
+                <span class="stat-label">Total Found</span>
+            </div>
+            <div class="stat-card">
+                <span id="ready-count" class="stat-value">0</span>
+                <span class="stat-label">Ready to Sync</span>
+            </div>
+            <div class="stat-card">
+                <span id="synced-count" class="stat-value">0</span>
+                <span class="stat-label">Trakt Synced</span>
+            </div>
+        </section>
+
+        <section class="controls">
+            <input type="text" id="history-search" class="search-box" placeholder="Search Netflix history...">
+            <div class="filter-pills">
+                <div class="pill active" data-filter="all">All</div>
+                <div class="pill" data-filter="ready">Ready</div>
+                <div class="pill" data-filter="synced">Synced</div>
+            </div>
+        </section>
+
+        <div id="history-list" class="history-list">
+            <!-- Items injected by JS -->
+        </div>
+    </div>
+
+    <!-- Loader Overlay -->
+    <div id="loader-overlay">
+        <div class="spinner"></div>
+        <p>Polishing your data...</p>
+    </div>
+
+    <!-- Fix Metadata Modal -->
+    <div id="fix-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Fix Metadata</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label>Search Trakt or Paste Link</label>
+                    <input type="text" id="trakt-search-input" class="modal-input"
+                        placeholder="e.g. https://trakt.tv/shows/halo or 'Stranger Things'">
+                </div>
+
+                <div id="search-results-mini" class="search-results-mini" style="display: none;">
+                    <!-- Results injected here -->
+                </div>
+
+                <div class="manual-fields">
+                    <div class="input-group">
+                        <label>Season #</label>
+                        <input type="number" id="manual-season" class="modal-input" value="1">
+                    </div>
+                    <div class="input-group">
+                        <label>Episode #</label>
+                        <input type="number" id="manual-episode" class="modal-input" value="1">
+                    </div>
+                </div>
+
+                <div id="selected-info" style="font-size: 13px; color: var(--text-dim);">
+                    <!-- Selection info -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-fix" class="btn-secondary">Cancel</button>
+                <button id="save-fix" class="btn-primary">Save & Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="history.js"></script>
+</body>
+
+</html>

@@ -331,9 +331,9 @@ async function resolveNetflixTitle(epId, tabId) {
 }
 
 function handleLiveProgress(payload, sender) {
-    if (!payload || !payload.progress) return;
+    if (!payload || payload.progress === undefined) return;
     chrome.storage.local.get(['nowPlaying'], (res) => {
-        if (res.nowPlaying && res.nowPlaying.status === 'playing') {
+        if (res.nowPlaying && (res.nowPlaying.status === 'scrobbling' || res.nowPlaying.status === 'playing')) {
             const updated = { ...res.nowPlaying, progress: payload.progress };
             chrome.storage.local.set({ nowPlaying: updated });
 
@@ -453,7 +453,7 @@ async function handleScrobble(data, sender) {
 
     // 2. Parse Title
     const platform = data.platform || 'netflix';
-    const parsed = parseTitle(data.title, platform);
+    const parsed = await parseTitle(data.title, platform);
     if (!parsed) {
         console.log("Could not parse title:", data.title);
         chrome.storage.local.set({
@@ -552,6 +552,30 @@ async function handleScrobble(data, sender) {
         );
     } else if (parsed.type === 'movie' && show?.overview) {
         synopsis = show.overview;
+    }
+
+    // Fetch extended show/movie details for runtime if not already present
+    if (!show.runtime && show?.ids?.trakt) {
+        try {
+            const extStorage = await chrome.storage.local.get(['client_id']);
+            const showType = parsed.type === 'episode' ? 'shows' : 'movies';
+            const extUrl = `${API_URL}/${showType}/${show.ids.trakt}?extended=full`;
+            const extRes = await fetch(extUrl, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'trakt-api-version': '2',
+                    'trakt-api-key': extStorage.client_id,
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (extRes.ok) {
+                const extData = await extRes.json();
+                if (extData.runtime) show.runtime = extData.runtime;
+                if (!synopsis && extData.overview) synopsis = extData.overview;
+            }
+        } catch (e) {
+            console.warn('[CRUNCHFLIX] Extended metadata fetch failed:', e);
+        }
     }
 
     // Prepare Payload
@@ -812,7 +836,71 @@ function extractMetadataFromPage() {
     return { title: title };
 }
 
-function parseTitle(rawTitle, platform = 'netflix') {
+// ── AI-Powered Title Parser (Chrome Built-in AI / Gemini Nano) ──
+
+let aiSession = null; // Cached session for reuse
+
+async function parseTitleWithAI(rawTitle) {
+    try {
+        // Feature detection: self.ai works in MV3 service workers (no window object)
+        const aiRoot = (typeof self !== 'undefined' && self.ai) || (typeof globalThis !== 'undefined' && globalThis.ai);
+        if (!aiRoot || !aiRoot.languageModel) {
+            return null; // AI not available
+        }
+
+        // Create or reuse session
+        if (!aiSession) {
+            aiSession = await aiRoot.languageModel.create({
+                systemPrompt: 'You are a media parser. Extract the show title, season number, and episode number from the provided string. Return strictly valid JSON with keys: title, season, episode. If the string is a movie (no season/episode), set season and episode to null. Do not include any explanation or markdown, only the raw JSON object.'
+            });
+        }
+
+        const response = await aiSession.prompt(rawTitle);
+
+        // Strip markdown fences if the model wraps its response
+        let cleaned = response.trim();
+        if (cleaned.startsWith('```')) {
+            cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+        }
+
+        const result = JSON.parse(cleaned);
+
+        // Validate required keys
+        if (!result.title || typeof result.title !== 'string') {
+            console.warn('[CRUNCHFLIX] AI returned invalid title:', result);
+            return null;
+        }
+
+        const parsed = {
+            type: (result.season !== null && result.episode !== null) ? 'episode' : 'movie',
+            title: result.title.trim(),
+            season: result.season !== null ? parseInt(result.season) : null,
+            episode: result.episode !== null ? parseInt(result.episode) : null
+        };
+
+        console.log(`[CRUNCHFLIX] AI parseTitle SUCCESS: "${parsed.title}" S${parsed.season} E${parsed.episode}`);
+        return parsed;
+
+    } catch (e) {
+        console.warn('[CRUNCHFLIX] AI parseTitle failed, falling back to regex:', e.message);
+        // Destroy broken session so it's recreated next time
+        aiSession = null;
+        return null;
+    }
+}
+
+async function parseTitle(rawTitle, platform = 'netflix') {
+    if (!rawTitle) return null;
+
+    // Try AI first
+    const aiResult = await parseTitleWithAI(rawTitle);
+    if (aiResult) return aiResult;
+
+    // Fallback to regex
+    return parseTitleRegex(rawTitle, platform);
+}
+
+function parseTitleRegex(rawTitle, platform = 'netflix') {
     if (!rawTitle) return null;
 
     // Crunchyroll handles explicit patterns from content.js or its og:title metadata
@@ -839,7 +927,6 @@ function parseTitle(rawTitle, platform = 'netflix') {
     // Match: "Show - Episode 8", "Show - Ep. 8", "Show - E8", "Show - S2:E8", "Show - Season 2 Episode 8"
     const patterns = [
         // PRIORITY: "Show S2:E8" or "Show S2 E8"
-        // Anchor on the S/E marker to stop greediness
         /^(.+?)\s+S(\d+)\s*[: ]\s*E(\d+)/i,
         // "Show - Episode 8" or "Show: Episode 8"
         /^(.+?)\s*[-:]\s*(?:Season\s*(\d+)\s+)?Episode\s+(\d+)/i,
@@ -854,24 +941,21 @@ function parseTitle(rawTitle, platform = 'netflix') {
     for (const regex of patterns) {
         const match = rawTitle.match(regex);
         if (match) {
-            // Groups differ by pattern: find season and episode
             const title = match[1].trim();
-            // For patterns with optional season group
             let season = null;
             let episode;
             if (match.length === 4) {
-                // Pattern has (title, season?, episode)
                 season = match[2] ? parseInt(match[2]) : null;
                 episode = parseInt(match[3]);
             } else {
                 episode = parseInt(match[match.length - 1]);
             }
-            console.log(`[CRUNCHFLIX] parseTitle SUCCESS: "${title}" S${season} E${episode} (Matched: ${regex.toString()})`);
+            console.log(`[CRUNCHFLIX] parseTitleRegex SUCCESS: "${title}" S${season} E${episode} (Matched: ${regex.toString()})`);
             return { type: 'episode', title, season: season, episode };
         }
     }
 
-    console.log(`[CRUNCHFLIX] parseTitle FAILED to find S/E pattern. Defaulting to movie: "${rawTitle.trim()}"`);
+    console.log(`[CRUNCHFLIX] parseTitleRegex FAILED to find S/E pattern. Defaulting to movie: "${rawTitle.trim()}"`);
     return {
         type: 'movie',
         title: rawTitle.trim()
