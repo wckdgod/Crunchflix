@@ -954,13 +954,13 @@ async function parseTitleWithDeepSeek(rawTitle) {
 async function parseTitle(rawTitle, platform = 'netflix') {
     if (!rawTitle) return null;
 
-    // 1. Try Chrome AI (local, on-device Gemini Nano)
-    const aiResult = await parseTitleWithAI(rawTitle);
-    if (aiResult) return aiResult;
-
-    // 2. Try DeepSeek API (cloud)
+    // 1. Try DeepSeek API (cloud, primary)
     const deepseekResult = await parseTitleWithDeepSeek(rawTitle);
     if (deepseekResult) return deepseekResult;
+
+    // 2. Try Chrome AI (local, on-device Gemini Nano)
+    const aiResult = await parseTitleWithAI(rawTitle);
+    if (aiResult) return aiResult;
 
     // 3. Fallback to regex (deterministic, always works)
     return parseTitleRegex(rawTitle, platform);
