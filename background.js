@@ -891,12 +891,24 @@ async function parseTitleWithAI(rawTitle) {
 
 // ── DeepSeek API Title Parser (Cloud Fallback) ──
 
+const deepseekParseCache = new Map(); // rawTitle -> parsed result
+
 async function parseTitleWithDeepSeek(rawTitle) {
     try {
+        // Check cache first
+        if (deepseekParseCache.has(rawTitle)) {
+            console.log(`[CRUNCHFLIX] DeepSeek cache hit for: "${rawTitle}"`);
+            return deepseekParseCache.get(rawTitle);
+        }
+
         const storage = await chrome.storage.local.get(['deepseek_api_key']);
         const apiKey = storage.deepseek_api_key;
-        if (!apiKey) return null; // No API key configured
+        if (!apiKey) {
+            console.log('[CRUNCHFLIX] DeepSeek skipped: no API key configured');
+            return null;
+        }
 
+        console.log(`[CRUNCHFLIX] DeepSeek parsing: "${rawTitle}"...`);
         const response = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
             headers: {
@@ -920,13 +932,17 @@ async function parseTitleWithDeepSeek(rawTitle) {
         });
 
         if (!response.ok) {
-            console.warn(`[CRUNCHFLIX] DeepSeek API error: ${response.status}`);
+            const errText = await response.text();
+            console.warn(`[CRUNCHFLIX] DeepSeek API error (${response.status}):`, errText);
             return null;
         }
 
         const data = await response.json();
         const content = data.choices?.[0]?.message?.content;
-        if (!content) return null;
+        if (!content) {
+            console.warn('[CRUNCHFLIX] DeepSeek returned empty content');
+            return null;
+        }
 
         const result = JSON.parse(content);
 
@@ -943,6 +959,7 @@ async function parseTitleWithDeepSeek(rawTitle) {
         };
 
         console.log(`[CRUNCHFLIX] DeepSeek parseTitle SUCCESS: "${parsed.title}" S${parsed.season} E${parsed.episode}`);
+        deepseekParseCache.set(rawTitle, parsed);
         return parsed;
 
     } catch (e) {
@@ -954,15 +971,24 @@ async function parseTitleWithDeepSeek(rawTitle) {
 async function parseTitle(rawTitle, platform = 'netflix') {
     if (!rawTitle) return null;
 
+    console.log(`[CRUNCHFLIX] parseTitle called with: "${rawTitle}" (platform: ${platform})`);
+
     // 1. Try DeepSeek API (cloud, primary)
     const deepseekResult = await parseTitleWithDeepSeek(rawTitle);
-    if (deepseekResult) return deepseekResult;
+    if (deepseekResult) {
+        console.log(`[CRUNCHFLIX] Using DeepSeek result: "${deepseekResult.title}"`);
+        return deepseekResult;
+    }
 
     // 2. Try Chrome AI (local, on-device Gemini Nano)
     const aiResult = await parseTitleWithAI(rawTitle);
-    if (aiResult) return aiResult;
+    if (aiResult) {
+        console.log(`[CRUNCHFLIX] Using Chrome AI result: "${aiResult.title}"`);
+        return aiResult;
+    }
 
     // 3. Fallback to regex (deterministic, always works)
+    console.log(`[CRUNCHFLIX] Using regex fallback`);
     return parseTitleRegex(rawTitle, platform);
 }
 
