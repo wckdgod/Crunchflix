@@ -518,7 +518,7 @@ async function handleScrobble(data, sender) {
     if (!searchResult) {
         console.log("Show not found on Trakt:", parsed.title);
         chrome.storage.local.set({
-            'nowPlaying': { status: 'not_found', title: parsed.title }
+            'nowPlaying': { status: 'not_found', title: parsed.title, progress: data.progress || 0 }
         });
         return;
     }
@@ -543,13 +543,15 @@ async function handleScrobble(data, sender) {
 
     // Fetch episode synopsis from Trakt (non-blocking, best-effort)
     let synopsis = null;
-    if (parsed.type === 'episode' && searchResult.show?.ids?.trakt) {
+    if (parsed.type === 'episode' && show?.ids?.trakt) {
         synopsis = await getTraktEpisodeOverview(
-            searchResult.show.ids.trakt,
+            show.ids.trakt,
             parsed.season || 1,
             parsed.episode,
             token
         );
+    } else if (parsed.type === 'movie' && show?.overview) {
+        synopsis = show.overview;
     }
 
     // Prepare Payload
@@ -568,6 +570,15 @@ async function handleScrobble(data, sender) {
 
     if (isSameEpisode && isSameStatus && timeDiff < THROTTLE_LIMIT) {
         console.log(`[CRUNCHFLIX] Throttling API call (${actionType}). Last sent ${timeDiff / 1000}s ago.`);
+
+        // Even if we skip Trakt, ensure the local storage always has the latest progress / metadata for the UI
+        chrome.storage.local.get(['nowPlaying'], (res) => {
+            if (res.nowPlaying && res.nowPlaying.title === parsed.title) {
+                chrome.storage.local.set({
+                    nowPlaying: { ...res.nowPlaying, progress: data.progress || res.nowPlaying.progress || 0, synopsis: synopsis || res.nowPlaying.synopsis }
+                });
+            }
+        });
         return;
     }
 
@@ -577,19 +588,18 @@ async function handleScrobble(data, sender) {
         const existing = await chrome.storage.local.get(['nowPlaying']);
         if (existing.nowPlaying) {
             const uiStatus = actionType === 'start' ? 'scrobbling' : (actionType === 'pause' ? 'paused' : 'stopped');
-            chrome.storage.local.set({ 'nowPlaying': { ...existing.nowPlaying, status: uiStatus, timestamp: Date.now() } });
+            chrome.storage.local.set({
+                'nowPlaying': { ...existing.nowPlaying, status: uiStatus, timestamp: Date.now(), progress: data.progress || existing.nowPlaying.progress || 0, synopsis: synopsis || existing.nowPlaying.synopsis }
+            });
         }
         // Still fall through to send the status-change to Trakt
     }
 
     const payload = {};
     if (parsed.type === 'episode') {
-        // If parsed.season is null, try to infer it from the searchResult (if extended=full returned it), otherwise default to 1.
         let targetSeason = parsed.season;
         if (!targetSeason && searchResult.show && searchResult.show.aired_episodes && searchResult.show.seasons) {
-            // Trakt's search response doesn't always contain the targeted season for an episode query.
-            // But if we know it's a null season, we still need one for the scrobble POST.
-            targetSeason = 1; // Default fallback to 1 since we can't reliably guess without the episode data.
+            targetSeason = 1;
         }
 
         payload.episode = {
@@ -597,7 +607,7 @@ async function handleScrobble(data, sender) {
             number: parsed.episode
         };
         payload.show = {
-            ids: { trakt: searchResult.show.ids.trakt }
+            ids: { trakt: show.ids.trakt }
         };
     } else {
         payload.movie = {
