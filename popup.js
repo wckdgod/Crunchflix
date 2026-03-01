@@ -18,6 +18,13 @@ if (settingsBtn) {
     });
 }
 
+const settingsBtnConnected = document.getElementById('settingsBtn');
+if (settingsBtnConnected) {
+    settingsBtnConnected.addEventListener('click', () => {
+        chrome.runtime.openOptionsPage();
+    });
+}
+
 const openHistoryBtn = document.getElementById('openHistoryBtn');
 if (openHistoryBtn) {
     openHistoryBtn.addEventListener('click', (e) => {
