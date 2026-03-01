@@ -503,8 +503,17 @@ async function handleScrobble(data, sender) {
     // If there was no show-level override (e.g. they only overrode the episode number), fallback to cache/API
     if (!searchResult && traktSearchCache.has(parsed.title)) {
         // ── 2. MEMORY CACHE ──
-        console.log(`[CRUNCHFLIX] Using search cache for "${parsed.title}"`);
-        searchResult = traktSearchCache.get(parsed.title);
+        const cached = traktSearchCache.get(parsed.title);
+        // Type validation: don't use a movie cache for an episode query or vice versa
+        const cachedIsShow = !!cached.show;
+        const needsShow = parsed.type === 'episode';
+        if (cachedIsShow === needsShow) {
+            console.log(`[CRUNCHFLIX] Using search cache for "${parsed.title}"`);
+            searchResult = cached;
+        } else {
+            console.log(`[CRUNCHFLIX] Cache type mismatch for "${parsed.title}" (cached: ${cachedIsShow ? 'show' : 'movie'}, need: ${needsShow ? 'show' : 'movie'}). Re-searching...`);
+            traktSearchCache.delete(parsed.title);
+        }
     }
 
     if (!searchResult) {
