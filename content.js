@@ -285,6 +285,13 @@ function sendScrobbleMessage(video, status) {
     sendToPort("scrobble", { status, title, progress, platform, fromIframe: !IS_TOP_FRAME });
 }
 
+function sendLiveProgressUpdate(video) {
+    if (isInvalidated || video.paused || video.ended) return;
+    const progress = video.duration ? Math.round((video.currentTime / video.duration) * 100) : 0;
+    const platform = window.location.hostname.includes('netflix') ? 'netflix' : 'crunchyroll';
+    sendToPort("progress_update", { progress, platform, status: 'playing' });
+}
+
 function monitorVideo(video) {
     if (video.getAttribute('data-ghost-monitored')) return;
     video.setAttribute('data-ghost-monitored', 'true');
@@ -307,6 +314,11 @@ function monitorVideo(video) {
             }
         }
     }, 10000);
+
+    // Live UI updates (every second)
+    const liveProgressInterval = setInterval(() => {
+        sendLiveProgressUpdate(video);
+    }, 1000);
 
     window.addEventListener('beforeunload', () => {
         if (video && !video.ended) {

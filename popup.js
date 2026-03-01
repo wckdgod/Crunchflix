@@ -47,6 +47,13 @@ function checkAuth() {
             }
         }
     });
+
+    chrome.runtime.onMessage.addListener((message) => {
+        if (message.action === "LIVE_PROGRESS") {
+            const progressBar = document.getElementById('play-progress-bar');
+            if (progressBar) progressBar.style.width = `${message.progress}%`;
+        }
+    });
 }
 
 function openAuthWindow() {
@@ -81,7 +88,7 @@ function updateNowPlaying(nowPlaying) {
     const metaYear = document.getElementById('meta-year');
     const metaRuntime = document.getElementById('meta-runtime');
     const metaGenres = document.getElementById('meta-genres');
-    const npSynopsis = document.getElementById('np-synopsis');
+    const npSynopsis = document.getElementById('synopsis-text');
     const progressBar = document.getElementById('play-progress-bar');
 
     if (!npTitle || !npStatus || !npImage) return;

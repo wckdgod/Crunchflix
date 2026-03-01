@@ -20,6 +20,8 @@ chrome.runtime.onConnect.addListener((port) => {
     port.onMessage.addListener((message) => {
         if (message.action === "scrobble") {
             handleScrobble(message.payload, port.sender);
+        } else if (message.action === "progress_update") {
+            handleLiveProgress(message.payload, port.sender);
         } else if (message.action === "STORE_SHAKTI_KEYS") {
             // Protocol-First Normalization: standardize to authUrl immediately
             const normalized = {
@@ -326,6 +328,19 @@ async function resolveNetflixTitle(epId, tabId) {
         console.error("[CRUNCHFLIX] pathEvaluator lookup failed:", e);
     }
     return null;
+}
+
+function handleLiveProgress(payload, sender) {
+    if (!payload || !payload.progress) return;
+    chrome.storage.local.get(['nowPlaying'], (res) => {
+        if (res.nowPlaying && res.nowPlaying.status === 'playing') {
+            const updated = { ...res.nowPlaying, progress: payload.progress };
+            chrome.storage.local.set({ nowPlaying: updated });
+
+            // Broadcast targeted live progress message specifically for smooth UI 
+            chrome.runtime.sendMessage({ action: "LIVE_PROGRESS", progress: payload.progress }).catch(() => { });
+        }
+    });
 }
 
 async function handleScrobble(data, sender) {
