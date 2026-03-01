@@ -1227,7 +1227,7 @@ async function sendScrobble(action, payload, token, clientId) {
     try {
         if (!clientId) throw new Error("Client ID missing for scrobble");
         console.log(`[CRUNCHFLIX] Sending ${action.toUpperCase()} to Trakt...`, payload);
-        const res = await fetch(url, {
+        let res = await fetch(url, {
             method: 'POST',
             credentials: 'include',
             headers: {
@@ -1239,6 +1239,26 @@ async function sendScrobble(action, payload, token, clientId) {
             body: JSON.stringify(payload)
         });
 
+        // Auto-refresh on 401
+        if (res.status === 401) {
+            console.warn('[CRUNCHFLIX] Token expired (401). Attempting auto-refresh...');
+            const newToken = await refreshTraktToken();
+            if (newToken) {
+                // Retry with fresh token
+                res = await fetch(url, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'trakt-api-version': '2',
+                        'trakt-api-key': clientId,
+                        'Authorization': `Bearer ${newToken}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+            }
+        }
+
         if (!res.ok) {
             const errText = await res.text();
             console.error(`[CRUNCHFLIX] Trakt ${action} failed (${res.status}):`, errText);
@@ -1248,6 +1268,47 @@ async function sendScrobble(action, payload, token, clientId) {
         }
     } catch (e) {
         console.error(`[CRUNCHFLIX] Scrobble ${action} exception:`, e);
+    }
+}
+
+// ── Auto Token Refresh ──
+async function refreshTraktToken() {
+    try {
+        const storage = await chrome.storage.local.get(['trakt_token', 'client_id', 'client_secret']);
+        const tokenData = storage.trakt_token;
+        if (!tokenData?.refresh_token || !storage.client_id || !storage.client_secret) {
+            console.error('[CRUNCHFLIX] Cannot refresh: missing refresh_token or API keys');
+            return null;
+        }
+
+        console.log('[CRUNCHFLIX] Refreshing Trakt token...');
+        const res = await fetch(`${API_URL}/oauth/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                refresh_token: tokenData.refresh_token,
+                client_id: storage.client_id,
+                client_secret: storage.client_secret,
+                redirect_uri: 'urn:ietf:wg:oauth:2.0:oob',
+                grant_type: 'refresh_token'
+            })
+        });
+
+        if (!res.ok) {
+            console.error(`[CRUNCHFLIX] Token refresh failed (${res.status})`);
+            // Clear broken token so user sees the reconnect screen
+            chrome.storage.local.remove(['trakt_token']);
+            return null;
+        }
+
+        const newTokenData = await res.json();
+        await chrome.storage.local.set({ trakt_token: newTokenData });
+        console.log('[CRUNCHFLIX] Token refreshed successfully!');
+        return newTokenData.access_token;
+
+    } catch (e) {
+        console.error('[CRUNCHFLIX] Token refresh exception:', e);
+        return null;
     }
 }
 /**

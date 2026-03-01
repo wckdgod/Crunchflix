@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
 });
 
-const connectBtn = document.getElementById('connectBtn');
+const connectBtn = document.getElementById('authBtn');
 if (connectBtn) connectBtn.addEventListener('click', openAuthWindow);
 
 const disconnectBtn = document.getElementById('disconnectBtn');
