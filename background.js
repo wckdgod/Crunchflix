@@ -889,14 +889,80 @@ async function parseTitleWithAI(rawTitle) {
     }
 }
 
+// ── DeepSeek API Title Parser (Cloud Fallback) ──
+
+async function parseTitleWithDeepSeek(rawTitle) {
+    try {
+        const storage = await chrome.storage.local.get(['deepseek_api_key']);
+        const apiKey = storage.deepseek_api_key;
+        if (!apiKey) return null; // No API key configured
+
+        const response = await fetch('https://api.deepseek.com/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: 'deepseek-chat',
+                response_format: { type: 'json_object' },
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are a media title parser. Extract the show name, season number, and episode number from the provided string. Return only a valid JSON object with keys: title (string), season (number or null), episode (number or null). Strip any quality tags, brackets, or "Watching:" prefixes. Do not include any explanation.'
+                    },
+                    {
+                        role: 'user',
+                        content: rawTitle
+                    }
+                ]
+            })
+        });
+
+        if (!response.ok) {
+            console.warn(`[CRUNCHFLIX] DeepSeek API error: ${response.status}`);
+            return null;
+        }
+
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content;
+        if (!content) return null;
+
+        const result = JSON.parse(content);
+
+        if (!result.title || typeof result.title !== 'string') {
+            console.warn('[CRUNCHFLIX] DeepSeek returned invalid title:', result);
+            return null;
+        }
+
+        const parsed = {
+            type: (result.season !== null && result.episode !== null) ? 'episode' : 'movie',
+            title: result.title.trim(),
+            season: result.season !== null ? parseInt(result.season) : null,
+            episode: result.episode !== null ? parseInt(result.episode) : null
+        };
+
+        console.log(`[CRUNCHFLIX] DeepSeek parseTitle SUCCESS: "${parsed.title}" S${parsed.season} E${parsed.episode}`);
+        return parsed;
+
+    } catch (e) {
+        console.warn('[CRUNCHFLIX] DeepSeek parseTitle failed:', e.message);
+        return null;
+    }
+}
+
 async function parseTitle(rawTitle, platform = 'netflix') {
     if (!rawTitle) return null;
 
-    // Try AI first
+    // 1. Try Chrome AI (local, on-device Gemini Nano)
     const aiResult = await parseTitleWithAI(rawTitle);
     if (aiResult) return aiResult;
 
-    // Fallback to regex
+    // 2. Try DeepSeek API (cloud)
+    const deepseekResult = await parseTitleWithDeepSeek(rawTitle);
+    if (deepseekResult) return deepseekResult;
+
+    // 3. Fallback to regex (deterministic, always works)
     return parseTitleRegex(rawTitle, platform);
 }
 
