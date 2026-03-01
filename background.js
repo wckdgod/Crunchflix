@@ -504,14 +504,15 @@ async function handleScrobble(data, sender) {
     if (!searchResult && traktSearchCache.has(parsed.title)) {
         // ── 2. MEMORY CACHE ──
         const cached = traktSearchCache.get(parsed.title);
-        // Type validation: don't use a movie cache for an episode query or vice versa
+        // Type + ID validation: don't use a movie cache for an episode or results with missing IDs
+        const cachedEntity = cached.show || cached.movie;
         const cachedIsShow = !!cached.show;
         const needsShow = parsed.type === 'episode';
-        if (cachedIsShow === needsShow) {
-            console.log(`[CRUNCHFLIX] Using search cache for "${parsed.title}"`);
+        if (cachedIsShow === needsShow && cachedEntity?.ids?.trakt) {
+            console.log(`[CRUNCHFLIX] Using search cache for "${parsed.title}" (Trakt ID: ${cachedEntity.ids.trakt})`);
             searchResult = cached;
         } else {
-            console.log(`[CRUNCHFLIX] Cache type mismatch for "${parsed.title}" (cached: ${cachedIsShow ? 'show' : 'movie'}, need: ${needsShow ? 'show' : 'movie'}). Re-searching...`);
+            console.log(`[CRUNCHFLIX] Cache invalid for "${parsed.title}" (type match: ${cachedIsShow === needsShow}, has ID: ${!!cachedEntity?.ids?.trakt}). Evicting...`);
             traktSearchCache.delete(parsed.title);
         }
     }
@@ -520,7 +521,11 @@ async function handleScrobble(data, sender) {
         // ── 3. API SEARCH BRIDGE ──
         searchResult = await searchTrakt(parsed.title, parsed.type, token, data.year);
         if (searchResult) {
-            traktSearchCache.set(parsed.title, searchResult);
+            // Only cache results with valid IDs
+            const entity = searchResult.show || searchResult.movie;
+            if (entity?.ids?.trakt) {
+                traktSearchCache.set(parsed.title, searchResult);
+            }
         }
     }
 
@@ -533,6 +538,15 @@ async function handleScrobble(data, sender) {
     }
 
     const show = searchResult.show || searchResult.movie;
+    if (!show?.ids?.trakt) {
+        console.error(`[CRUNCHFLIX] Search result for "${parsed.title}" has no valid Trakt ID. Skipping scrobble.`);
+        chrome.storage.local.set({
+            'nowPlaying': { status: 'not_found', title: parsed.title, progress: data.progress || 0 }
+        });
+        // Evict the broken cache entry
+        traktSearchCache.delete(parsed.title);
+        return;
+    }
     console.log("Found Item:", show.title, "ID:", show.ids.trakt);
 
     // Aesthetic Upgrade: Prefer TMDB Image, show Trakt title
