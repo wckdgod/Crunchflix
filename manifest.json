@@ -14,7 +14,8 @@
     "*://*.crunchyroll.com/*",
     "*://api.trakt.tv/*",
     "*://api.themoviedb.org/*",
-    "*://image.tmdb.org/*"
+    "*://image.tmdb.org/*",
+    "*://api.deepseek.com/*"
   ],
   "background": {
     "service_worker": "background.js"
