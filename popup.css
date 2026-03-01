@@ -148,15 +148,15 @@ body {
 /* The Floating App Card */
 /* w-[340px] bg-zinc-950/60 backdrop-blur-2xl rounded-[28px] overflow-hidden shadow-2xl font-sans text-white border border-white/10 */
 .app-card {
-    width: 360px;
-    height: 520px;
+    width: 344px;
+    height: 504px;
+    margin: 8px;
     background: rgba(9, 9, 11, 0.6);
     -webkit-backdrop-filter: blur(40px);
     /* 2xl blur */
     backdrop-filter: blur(40px);
-    border-top: 1px solid var(--white-10);
-    /* Keep a subtle top glass edge */
-    border-radius: 0;
+    border: 1px solid var(--white-10);
+    border-radius: 28px;
     overflow: hidden;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
     /* shadow-2xl */
