@@ -912,26 +912,38 @@ async function parseTitleWithAI(rawTitle) {
     }
 }
 
-// ── DeepSeek API Title Parser (Cloud Fallback) ──
+// ── DeepSeek API Title Parser (V3.2, Primary) ──
 
-const deepseekParseCache = new Map(); // rawTitle -> parsed result
+const deepseekParseCache = new Map(); // rawTitle -> Promise<parsed result>
 
 async function parseTitleWithDeepSeek(rawTitle) {
-    try {
-        // Check cache first
-        if (deepseekParseCache.has(rawTitle)) {
+    // Check cache first — stores Promises to prevent concurrent API calls
+    if (deepseekParseCache.has(rawTitle)) {
+        const cached = await deepseekParseCache.get(rawTitle);
+        if (cached) {
             console.log(`[CRUNCHFLIX] DeepSeek cache hit for: "${rawTitle}"`);
-            return deepseekParseCache.get(rawTitle);
+            return cached;
         }
+        // Previous attempt failed, remove and retry
+        deepseekParseCache.delete(rawTitle);
+    }
 
-        const storage = await chrome.storage.local.get(['deepseek_api_key']);
-        const apiKey = storage.deepseek_api_key;
-        if (!apiKey) {
-            console.log('[CRUNCHFLIX] DeepSeek skipped: no API key configured');
-            return null;
-        }
+    const storage = await chrome.storage.local.get(['deepseek_api_key']);
+    const apiKey = storage.deepseek_api_key;
+    if (!apiKey) {
+        console.log('[CRUNCHFLIX] DeepSeek skipped: no API key configured');
+        return null;
+    }
 
-        console.log(`[CRUNCHFLIX] DeepSeek Reasoner parsing: "${rawTitle}"...`);
+    // Store the Promise immediately to prevent concurrent calls
+    const apiPromise = _callDeepSeek(rawTitle, apiKey);
+    deepseekParseCache.set(rawTitle, apiPromise);
+    return apiPromise;
+}
+
+async function _callDeepSeek(rawTitle, apiKey) {
+    try {
+        console.log(`[CRUNCHFLIX] DeepSeek V3.2 parsing: "${rawTitle}"...`);
         const response = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
             headers: {
@@ -939,17 +951,16 @@ async function parseTitleWithDeepSeek(rawTitle) {
                 'Authorization': `Bearer ${apiKey}`
             },
             body: JSON.stringify({
-                model: 'deepseek-reasoner',
+                model: 'deepseek-chat',
+                response_format: { type: 'json_object' },
                 messages: [
                     {
+                        role: 'system',
+                        content: 'You are an expert media title parser with deep knowledge of TV shows and movies. Given a raw, often messy string scraped from a streaming platform, extract: the show name, season number, and episode number. Use your knowledge of real TV shows to infer the correct season when not explicitly stated (e.g. "Pilot" is almost always Season 1 Episode 1, "Three Little Birds" is S3E1 of Lost in Space). Separate mangled strings like "ShowNameE1EpTitle" into the proper show name and episode info. Return strictly valid JSON with keys: title (string, the clean official show name), season (number, infer from your knowledge if possible, default to 1 if episode exists but season is ambiguous), episode (number or null). Strip quality tags, brackets, and prefixes like "Watching:". No explanation, only JSON.'
+                    },
+                    {
                         role: 'user',
-                        content: `You are an expert media title parser with deep knowledge of TV shows and movies. Given this raw string scraped from a streaming platform, extract the show name, season number, and episode number.
-
-Use your knowledge of real TV shows to infer the correct season when not explicitly stated (e.g. "Pilot" is almost always Season 1 Episode 1). Separate mangled strings like "ShowNameE1Pilot" into the proper show name and episode info.
-
-Return ONLY a valid JSON object with keys: title (string, the clean official show name), season (number, default to 1 if ambiguous), episode (number or null). No explanation, no markdown fences, only the raw JSON object.
-
-Raw title: "${rawTitle}"`
+                        content: rawTitle
                     }
                 ]
             })
@@ -963,14 +974,12 @@ Raw title: "${rawTitle}"`
 
         const data = await response.json();
         const content = data.choices?.[0]?.message?.content;
-        const reasoning = data.choices?.[0]?.message?.reasoning_content;
-        if (reasoning) console.log(`[CRUNCHFLIX] DeepSeek reasoning: ${reasoning.substring(0, 200)}...`);
         if (!content) {
             console.warn('[CRUNCHFLIX] DeepSeek returned empty content');
             return null;
         }
 
-        // Strip markdown fences if reasoner wraps response
+        // Strip markdown fences just in case
         let cleaned = content.trim();
         if (cleaned.startsWith('```')) {
             cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
@@ -991,7 +1000,6 @@ Raw title: "${rawTitle}"`
         };
 
         console.log(`[CRUNCHFLIX] DeepSeek parseTitle SUCCESS: "${parsed.title}" S${parsed.season} E${parsed.episode}`);
-        deepseekParseCache.set(rawTitle, parsed);
         return parsed;
 
     } catch (e) {
