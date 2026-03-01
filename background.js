@@ -944,7 +944,7 @@ async function parseTitleWithDeepSeek(rawTitle) {
                 messages: [
                     {
                         role: 'system',
-                        content: 'You are a media title parser. Extract the show name, season number, and episode number from the provided string. Return only a valid JSON object with keys: title (string), season (number or null), episode (number or null). Strip any quality tags, brackets, or "Watching:" prefixes. Do not include any explanation.'
+                        content: 'You are an expert media title parser with deep knowledge of TV shows and movies. Given a raw, often messy string scraped from a streaming platform, extract: the show name, season number, and episode number. Use your knowledge of real TV shows to infer the correct season when not explicitly stated (e.g. "Pilot" is almost always Season 1 Episode 1). Separate mangled strings like "ShowNameE1Pilot" into the proper show name and episode info. Return strictly valid JSON with keys: title (string, the clean official show name), season (number, infer from your knowledge if possible, default to 1 if episode exists but season is ambiguous), episode (number or null). Strip quality tags, brackets, and prefixes like "Watching:". No explanation, only JSON.'
                     },
                     {
                         role: 'user',
