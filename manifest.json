@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CRUNCHFLIX",
-  "version": "1.0",
+  "version": "1.4.0",
   "description": "Trakt scrobbler for Netflix and Crunchyroll.",
   "permissions": [
     "activeTab",
@@ -30,6 +30,16 @@
       ],
       "all_frames": true,
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "injected.js"
+      ],
+      "matches": [
+        "*://*.netflix.com/*"
+      ]
     }
   ],
   "action": {
