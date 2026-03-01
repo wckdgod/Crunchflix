@@ -895,7 +895,7 @@ async function parseTitleWithAI(rawTitle) {
         }
 
         const parsed = {
-            type: (result.season !== null && result.episode !== null) ? 'episode' : 'movie',
+            type: (result.episode !== null) ? 'episode' : 'movie',
             title: result.title.trim(),
             season: result.season !== null ? parseInt(result.season) : null,
             episode: result.episode !== null ? parseInt(result.episode) : null
@@ -975,7 +975,7 @@ async function parseTitleWithDeepSeek(rawTitle) {
         }
 
         const parsed = {
-            type: (result.season !== null && result.episode !== null) ? 'episode' : 'movie',
+            type: (result.episode !== null) ? 'episode' : 'movie',
             title: result.title.trim(),
             season: result.season !== null ? parseInt(result.season) : null,
             episode: result.episode !== null ? parseInt(result.episode) : null
@@ -1093,26 +1093,27 @@ function sanitizeShowTitle(rawTitle) {
 }
 
 function validateMatch(query, result, expectedYear) {
-    if (!result || !result.show) return false;
+    const entity = result?.show || result?.movie;
+    if (!entity) return false;
 
     const normalize = (s) => s.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
     const q = normalize(query);
-    const r = normalize(result.show.title);
+    const r = normalize(entity.title);
 
     if (expectedYear) {
-        const resultYear = parseInt(result.show.year);
+        const resultYear = parseInt(entity.year);
         if (Math.abs(resultYear - parseInt(expectedYear)) > 1) {
-            console.log(`[CRUNCHFLIX] Rejected match: "${result.show.title}" (Year mismatch: ${resultYear} vs ${expectedYear})`);
+            console.log(`[CRUNCHFLIX] Rejected match: "${entity.title}" (Year mismatch: ${resultYear} vs ${expectedYear})`);
             return false;
         }
-        console.log(`[CRUNCHFLIX] Accepted match based on Year: "${result.show.title}" (${resultYear})`);
+        console.log(`[CRUNCHFLIX] Accepted match based on Year: "${entity.title}" (${resultYear})`);
         return true;
     }
 
     if (q === r) return true;
 
     if (q.length > r.length + 5 && q.startsWith(r)) {
-        console.log(`[CRUNCHFLIX] Rejected match: "${result.show.title}" (too short for "${query}")`);
+        console.log(`[CRUNCHFLIX] Rejected match: "${entity.title}" (too short for "${query}")`);
         return false;
     }
 
@@ -1156,8 +1157,10 @@ async function searchTmdbAndResolve(query, type, token) {
         });
         const traktResults = await traktRes.json();
         if (traktResults && traktResults.length > 0) {
-            console.log(`[CRUNCHFLIX] Resolved TMDB ID to Trakt Show: "${traktResults[0].show.title}"`);
-            return traktResults[0];
+            const resolved = traktResults[0];
+            const resolvedEntity = resolved.show || resolved.movie;
+            console.log(`[CRUNCHFLIX] Resolved TMDB ID to Trakt: "${resolvedEntity?.title}"`);
+            return resolved;
         }
     } catch (e) {
         console.error("TMDB Fallback failed:", e);
