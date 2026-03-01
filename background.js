@@ -931,7 +931,7 @@ async function parseTitleWithDeepSeek(rawTitle) {
             return null;
         }
 
-        console.log(`[CRUNCHFLIX] DeepSeek parsing: "${rawTitle}"...`);
+        console.log(`[CRUNCHFLIX] DeepSeek Reasoner parsing: "${rawTitle}"...`);
         const response = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
             headers: {
@@ -939,16 +939,17 @@ async function parseTitleWithDeepSeek(rawTitle) {
                 'Authorization': `Bearer ${apiKey}`
             },
             body: JSON.stringify({
-                model: 'deepseek-chat',
-                response_format: { type: 'json_object' },
+                model: 'deepseek-reasoner',
                 messages: [
                     {
-                        role: 'system',
-                        content: 'You are an expert media title parser with deep knowledge of TV shows and movies. Given a raw, often messy string scraped from a streaming platform, extract: the show name, season number, and episode number. Use your knowledge of real TV shows to infer the correct season when not explicitly stated (e.g. "Pilot" is almost always Season 1 Episode 1). Separate mangled strings like "ShowNameE1Pilot" into the proper show name and episode info. Return strictly valid JSON with keys: title (string, the clean official show name), season (number, infer from your knowledge if possible, default to 1 if episode exists but season is ambiguous), episode (number or null). Strip quality tags, brackets, and prefixes like "Watching:". No explanation, only JSON.'
-                    },
-                    {
                         role: 'user',
-                        content: rawTitle
+                        content: `You are an expert media title parser with deep knowledge of TV shows and movies. Given this raw string scraped from a streaming platform, extract the show name, season number, and episode number.
+
+Use your knowledge of real TV shows to infer the correct season when not explicitly stated (e.g. "Pilot" is almost always Season 1 Episode 1). Separate mangled strings like "ShowNameE1Pilot" into the proper show name and episode info.
+
+Return ONLY a valid JSON object with keys: title (string, the clean official show name), season (number, default to 1 if ambiguous), episode (number or null). No explanation, no markdown fences, only the raw JSON object.
+
+Raw title: "${rawTitle}"`
                     }
                 ]
             })
@@ -962,12 +963,20 @@ async function parseTitleWithDeepSeek(rawTitle) {
 
         const data = await response.json();
         const content = data.choices?.[0]?.message?.content;
+        const reasoning = data.choices?.[0]?.message?.reasoning_content;
+        if (reasoning) console.log(`[CRUNCHFLIX] DeepSeek reasoning: ${reasoning.substring(0, 200)}...`);
         if (!content) {
             console.warn('[CRUNCHFLIX] DeepSeek returned empty content');
             return null;
         }
 
-        const result = JSON.parse(content);
+        // Strip markdown fences if reasoner wraps response
+        let cleaned = content.trim();
+        if (cleaned.startsWith('```')) {
+            cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+        }
+
+        const result = JSON.parse(cleaned);
 
         if (!result.title || typeof result.title !== 'string') {
             console.warn('[CRUNCHFLIX] DeepSeek returned invalid title:', result);
