@@ -1,6 +1,6 @@
 importScripts('config.js');
 
-const VERSION = "2.0.5";
+const VERSION = "2.0.6";
 console.log(`[CRUNCHFLIX] Background script loaded. Version: ${VERSION}`);
 
 async function remoteLog(message, context = 'BG', level = 'INFO') {
@@ -517,7 +517,7 @@ async function handleScrobble(data, sender) {
     const token = storage.simkl_token?.access_token || storage.trakt_token?.access_token;
 
     if (!token) {
-        console.log("No Simkl token found, ignoring.");
+        console.log("[CRUNCHFLIX] No Simkl token found in storage. Please click 'Connect to Simkl' in the extension popup to log in.");
         return;
     }
 
