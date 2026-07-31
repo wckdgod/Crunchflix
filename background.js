@@ -1,6 +1,6 @@
 importScripts('config.js');
 
-const VERSION = "2.0.2";
+const VERSION = "2.0.3";
 console.log(`[CRUNCHFLIX] Background script loaded. Version: ${VERSION}`);
 
 async function remoteLog(message, context = 'BG', level = 'INFO') {
@@ -14,7 +14,7 @@ async function remoteLog(message, context = 'BG', level = 'INFO') {
         // Silent fail if logger isn't running
     }
 }
-remoteLog(`Background service worker started. Build: ${VERSION}`, 'INIT');
+// remoteLog(`Background service worker started. Build: ${VERSION}`, 'INIT');
 
 // --- State Management ---
 const ports = new Map();         // tabId -> port
