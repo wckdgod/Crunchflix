@@ -1,6 +1,6 @@
 importScripts('config.js');
 
-const VERSION = "2.0.7";
+const VERSION = "2.0.8";
 console.log(`[CRUNCHFLIX] Background script loaded. Version: ${VERSION}`);
 
 async function remoteLog(message, context = 'BG', level = 'INFO') {
@@ -491,7 +491,7 @@ async function handleScrobble(data, sender) {
     if (sender?.tab?.id) delete globalThis[`retry:${sender.tab.id}`];
 
     // Get current state to check if we need to update UI
-    const storage = await chrome.storage.local.get(['trakt_token', 'corrections', 'client_id', 'nowPlaying']);
+    const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token', 'corrections', 'client_id', 'nowPlaying']);
 
     // IMMEDIATE UI FEEDBACK: Update storage with the raw title so the popup doesn't stay stuck on the previous show
     const currentNP = storage.nowPlaying || {};
