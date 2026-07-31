@@ -1,6 +1,6 @@
 importScripts('config.js');
 
-const VERSION = "2.1.0";
+const VERSION = "2.1.1";
 console.log(`[CRUNCHFLIX] Background script loaded. Version: ${VERSION}`);
 
 async function remoteLog(message, context = 'BG', level = 'INFO') {
@@ -1740,11 +1740,15 @@ async function bulkSyncToSimkl(items, sendResponse) {
                 showsToSync.push({
                     title: item.seriesTitle,
                     ids: { netflix: item.movieID },
-                    episodes: [
+                    seasons: [
                         {
-                            season: item.seasonNumber || 1,
-                            number: item.episodeNumber || 1,
-                            watched_at: watchedAt
+                            number: item.seasonNumber || 1,
+                            episodes: [
+                                {
+                                    number: item.episodeNumber || 1,
+                                    watched_at: watchedAt
+                                }
+                            ]
                         }
                     ]
                 });

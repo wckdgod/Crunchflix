@@ -654,7 +654,7 @@ function initPrimeVideo() {
 }
 
 (function init() {
-    const CS_VERSION = "2.1.0";
+    const CS_VERSION = "2.1.1";
     console.log(`[CRUNCHFLIX] Content script loaded. Version: ${CS_VERSION}`);
     remoteLog(`Content script loaded on ${window.location.hostname}. Version: ${CS_VERSION}`, "INIT");
     connectToBackground();
