@@ -1,6 +1,6 @@
 importScripts('config.js');
 
-const VERSION = "2.0.0";
+const VERSION = "2.0.1";
 console.log(`[CRUNCHFLIX] Background script loaded. Version: ${VERSION}`);
 
 async function remoteLog(message, context = 'BG', level = 'INFO') {
