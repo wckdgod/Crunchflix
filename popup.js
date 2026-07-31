@@ -34,8 +34,8 @@ if (openHistoryBtn) {
 }
 
 function checkAuth() {
-    chrome.storage.local.get(['trakt_token', 'nowPlaying'], (result) => {
-        if (result.trakt_token) {
+    chrome.storage.local.get(['simkl_token', 'trakt_token', 'nowPlaying'], (result) => {
+        if (result.simkl_token || result.trakt_token) {
             showConnected(result.nowPlaying);
         } else {
             showDisconnected();
@@ -45,7 +45,7 @@ function checkAuth() {
     // Listen for updates
     chrome.storage.onChanged.addListener((changes, namespace) => {
         if (namespace === 'local') {
-            if (changes.trakt_token) {
+            if (changes.simkl_token || changes.trakt_token) {
                 // If token appears, we are connected!
                 checkAuth();
             }
@@ -290,7 +290,7 @@ function showDisconnected() {
 }
 
 function logout() {
-    chrome.storage.local.remove(['trakt_token', 'nowPlaying'], () => {
+    chrome.storage.local.remove(['simkl_token', 'trakt_token', 'nowPlaying'], () => {
         showDisconnected();
     });
 }
@@ -367,9 +367,7 @@ if (saveEpFixBtn) {
 
             const corrections = res.corrections || {};
 
-            // This show might be auto-mapped or manually mapped. We allow overriding episode offsets for both!
             if (!corrections[cleanTitle]) {
-                // Create base structure if it doesn't exist
                 corrections[cleanTitle] = { data: null, offsets: {} };
             }
 
@@ -379,7 +377,6 @@ if (saveEpFixBtn) {
 
             await chrome.storage.local.set({ corrections });
 
-            // Invalidate cache for this title in background memory
             chrome.runtime.sendMessage({ action: "clearCache", payload: { title: cleanTitle } });
 
             if (statusDiv) {
@@ -387,7 +384,6 @@ if (saveEpFixBtn) {
                 statusDiv.style.color = "#4CAF50";
             }
 
-            // Immediate scrobble attempt (Reconstruct fake raw string so background.js's handleScrobble picks up the fresh manual fetch!)
             const scrobbleTitleFormat = `${cleanTitle} - Season ${orgS} Episode ${orgE}`;
             chrome.runtime.sendMessage({ action: "scrobble", payload: { title: scrobbleTitleFormat, status: 'playing', progress: 1 } });
 
@@ -417,7 +413,7 @@ if (fixSearchBtn && fixInput) {
         const statusDiv = document.getElementById('fix-status');
 
         if (statusDiv) {
-            statusDiv.textContent = "Searching Trakt...";
+            statusDiv.textContent = "Searching Simkl...";
             statusDiv.style.color = "#aaa";
         }
         if (resultsDiv) {
@@ -426,8 +422,8 @@ if (fixSearchBtn && fixInput) {
         }
 
         chrome.runtime.sendMessage({
-            action: "searchTraktForPopup",
-            payload: { query: query }
+            action: "searchSimklForPopup",
+            payload: { query: query, type: 'tv,movie' }
         }, (response) => {
             if (response && response.success) {
                 displayResults(response.results);
@@ -459,14 +455,15 @@ function displayResults(results) {
     }
 
     results.forEach(result => {
-        const item = result.show || result.movie;
-        if (!item) return;
+        const item = result.show || result.movie || result;
+        if (!item || !item.title) return;
 
         const div = document.createElement('div');
         div.className = 'result-item';
+        const typeLabel = (result.type || item.type || 'TV').toUpperCase();
         div.innerHTML = `
             <span class="item-title">${item.title}</span>
-            <span class="item-meta">${item.year ? item.year : ''} • ${result.type.toUpperCase()}</span>
+            <span class="item-meta">${item.year ? item.year : ''} • ${typeLabel}</span>
         `;
 
         div.onclick = () => {

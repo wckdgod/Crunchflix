@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "CRUNCHFLIX",
-  "version": "1.4.0",
-  "description": "Trakt scrobbler for Netflix and Crunchyroll.",
+  "version": "1.7.4",
+  "description": "Simkl scrobbler for Netflix, Crunchyroll, Jio Hotstar, and Prime Video.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -12,19 +12,37 @@
   "host_permissions": [
     "*://*.netflix.com/*",
     "*://*.crunchyroll.com/*",
-    "*://api.trakt.tv/*",
+    "*://*.hotstar.com/*",
+    "*://*.jiohotstar.com/*",
+    "*://*.primevideo.com/*",
+    "*://*.amazon.com/*",
+    "*://*.amazon.co.uk/*",
+    "*://*.amazon.co.jp/*",
+    "*://*.amazon.de/*",
+    "*://*.amazon.com.au/*",
+    "*://api.simkl.com/*",
+    "*://simkl.com/*",
     "*://api.themoviedb.org/*",
     "*://image.tmdb.org/*",
     "*://api.deepseek.com/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "content_scripts": [
     {
       "matches": [
         "*://*.netflix.com/*",
-        "*://*.crunchyroll.com/*"
+        "*://*.crunchyroll.com/*",
+        "*://*.hotstar.com/*",
+        "*://*.jiohotstar.com/*",
+        "*://*.primevideo.com/*",
+        "*://*.amazon.com/*",
+        "*://*.amazon.co.uk/*",
+        "*://*.amazon.co.jp/*",
+        "*://*.amazon.de/*",
+        "*://*.amazon.com.au/*"
       ],
       "js": [
         "content.js"

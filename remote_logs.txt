@@ -1,0 +1,7 @@
+--- LOG STARTED AT 2026-04-12T12:29:11.020Z ---
+[2026-04-12T12:31:27.747Z] [INFO] [INIT] Background service worker started. Build: 1.5.6
+[2026-04-12T12:31:48.063Z] [INFO] [INIT] Content script loaded on www.netflix.com. Version: 1.5.6
+[2026-04-12T12:35:00.081Z] [INFO] [INIT] Background service worker started. Build: 1.5.7
+[2026-04-12T12:35:19.865Z] [INFO] [INIT] Content script loaded on www.netflix.com. Version: 1.5.7
+[2026-04-12T12:37:35.066Z] [INFO] [INIT] Background service worker started. Build: 1.5.8
+[2026-04-12T12:37:47.653Z] [INFO] [INIT] Content script loaded on www.hotstar.com. Version: 1.5.8
