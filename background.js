@@ -737,6 +737,7 @@ async function handleScrobble(data, sender) {
             timestamp: Date.now(),
             traktTitle: show.title,
             traktYear: show.year,
+            year: show.year,
             synopsis: synopsis,
             rating: show.ratings?.simkl?.rating ? show.ratings.simkl.rating.toFixed(1) : null,
             genres: show.genres ? show.genres.slice(0, 3) : [],
