@@ -133,16 +133,16 @@ function updateNowPlaying(nowPlaying) {
         npStatus.innerHTML = `${iconHtml}<span class="status-text">${statusText}</span>`;
 
         // Metadata with defaults for bullet points mapping
-        let yearText = nowPlaying.traktYear ? nowPlaying.traktYear : 'Unknown Year';
+        let yearText = (nowPlaying.traktYear || nowPlaying.year) ? (nowPlaying.traktYear || nowPlaying.year) : '';
         if (metaYear) metaYear.textContent = yearText;
 
         if (metaRuntime) {
-            let runtimeStr = nowPlaying.runtime ? `${nowPlaying.runtime}m` : 'Unknown length';
+            let runtimeStr = nowPlaying.runtime ? `${nowPlaying.runtime}m` : '';
             metaRuntime.textContent = runtimeStr;
         }
 
         if (metaGenres) {
-            metaGenres.textContent = (nowPlaying.genres && nowPlaying.genres.length > 0) ? nowPlaying.genres[0] : 'Anime';
+            metaGenres.textContent = (nowPlaying.genres && nowPlaying.genres.length > 0) ? nowPlaying.genres[0] : (nowPlaying.type === 'movie' ? 'Movie' : 'TV Show');
         }
 
         // Synopsis
