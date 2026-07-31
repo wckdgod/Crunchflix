@@ -1,4 +1,4 @@
-import { CLIENT_ID, CLIENT_SECRET, getSimklUrl, getSimklHeaders } from './config.js';
+// config.js is loaded prior to auth.js
 
 async function startAuth() {
     try {

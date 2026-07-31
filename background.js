@@ -1,4 +1,4 @@
-import { API_URL, CLIENT_ID, CLIENT_SECRET, APP_NAME, APP_VERSION, getSimklUrl, getSimklHeaders } from './config.js';
+importScripts('config.js');
 
 const VERSION = "2.0.0";
 console.log(`[CRUNCHFLIX] Background script loaded. Version: ${VERSION}`);
