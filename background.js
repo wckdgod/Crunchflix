@@ -1,6 +1,6 @@
 importScripts('config.js');
 
-const VERSION = "2.0.6";
+const VERSION = "2.0.7";
 console.log(`[CRUNCHFLIX] Background script loaded. Version: ${VERSION}`);
 
 async function remoteLog(message, context = 'BG', level = 'INFO') {
@@ -16,7 +16,14 @@ async function remoteLog(message, context = 'BG', level = 'INFO') {
 }
 // remoteLog(`Background service worker started. Build: ${VERSION}`, 'INIT');
 
-// --- State Management ---
+function getSimklToken(storage) {
+    if (!storage) return null;
+    if (typeof storage.simkl_token === 'string') return storage.simkl_token;
+    if (storage.simkl_token?.access_token) return storage.simkl_token.access_token;
+    if (typeof storage.trakt_token === 'string') return storage.trakt_token;
+    if (storage.trakt_token?.access_token) return storage.trakt_token.access_token;
+    return null;
+}
 const ports = new Map();         // tabId -> port
 const shaktiKeys = new Map();    // tabId -> { buildId, authUrl }
 const simklSearchCache = new Map(); // title -> searchResult
@@ -91,7 +98,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         (async () => {
             try {
                 const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token']);
-                const token = storage.simkl_token?.access_token || storage.trakt_token?.access_token;
+                const token = getSimklToken(storage);
                 if (!token) throw new Error("No Simkl token found.");
 
                 const searchType = message.payload?.type || 'tv';
@@ -514,7 +521,7 @@ async function handleScrobble(data, sender) {
     }
 
     // 1. Get Token
-    const token = storage.simkl_token?.access_token || storage.trakt_token?.access_token;
+    const token = getSimklToken(storage);
 
     if (!token) {
         console.log("[CRUNCHFLIX] No Simkl token found in storage. Please click 'Connect to Simkl' in the extension popup to log in.");
@@ -1691,7 +1698,7 @@ async function fetchNetflixProgress(ids) {
 async function bulkCheckSimkl(items, sendResponse) {
     try {
         const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token']);
-        const token = storage.simkl_token?.access_token || storage.trakt_token?.access_token;
+        const token = getSimklToken(storage);
         if (!token) throw new Error("Simkl not connected.");
 
         const url = getSimklUrl('/sync/activities');
@@ -1713,7 +1720,7 @@ async function bulkCheckSimkl(items, sendResponse) {
 async function bulkSyncToSimkl(items, sendResponse) {
     try {
         const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token']);
-        const token = storage.simkl_token?.access_token || storage.trakt_token?.access_token;
+        const token = getSimklToken(storage);
         if (!token) throw new Error("Simkl not connected.");
 
         const showsToSync = [];
@@ -1774,7 +1781,7 @@ async function bulkSyncToSimkl(items, sendResponse) {
 async function resolveSimklUrl(url, sendResponse) {
     try {
         const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token']);
-        const token = storage.simkl_token?.access_token || storage.trakt_token?.access_token;
+        const token = getSimklToken(storage);
         if (!token) throw new Error("Simkl not connected.");
 
         const showMatch = url.match(/shows\/([^/]+)/) || url.match(/tv\/([^/]+)/);
@@ -1794,7 +1801,7 @@ async function resolveSimklUrl(url, sendResponse) {
 async function handleSimklSearch(query, type, sendResponse) {
     try {
         const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token']);
-        const token = storage.simkl_token?.access_token || storage.trakt_token?.access_token;
+        const token = getSimklToken(storage);
         if (!token) throw new Error("Simkl not connected.");
 
         const results = await doSearchRaw(query, token, type);
