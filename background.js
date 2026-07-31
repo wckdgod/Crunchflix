@@ -767,7 +767,6 @@ async function getSimklEpisodeOverview(showId, season, episode, token) {
         return null;
     }
 }
-}
 
 // This function is injected into the tab's MAIN frame by chrome.scripting.executeScript
 // It must be self-contained (no references to outer scope)
