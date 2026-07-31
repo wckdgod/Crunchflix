@@ -1,6 +1,6 @@
 import { API_URL, CLIENT_ID, CLIENT_SECRET, APP_NAME, APP_VERSION, getSimklUrl, getSimklHeaders } from './config.js';
 
-const VERSION = "1.7.4";
+const VERSION = "2.0.0";
 console.log(`[CRUNCHFLIX] Background script loaded. Version: ${VERSION}`);
 
 async function remoteLog(message, context = 'BG', level = 'INFO') {
