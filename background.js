@@ -1,6 +1,6 @@
 importScripts('config.js');
 
-const VERSION = "2.0.8";
+const VERSION = "2.0.9";
 console.log(`[CRUNCHFLIX] Background script loaded. Version: ${VERSION}`);
 
 async function remoteLog(message, context = 'BG', level = 'INFO') {
@@ -1372,8 +1372,11 @@ async function sendScrobble(action, payload, token) {
 }
 
 async function doSearchRaw(q, token, type = 'tv', year = null) {
-    const simklType = type === 'show' || type === 'episode' ? 'tv' : type;
-    let url = getSimklUrl(`/search/text?q=${encodeURIComponent(q)}&type=${simklType}`);
+    let simklType = 'tv';
+    if (type === 'movie') simklType = 'movie';
+    else if (type === 'anime') simklType = 'anime';
+
+    let url = getSimklUrl(`/search/${simklType}?q=${encodeURIComponent(q)}`);
     if (year) url += `&year=${year}`;
 
     try {
@@ -1381,7 +1384,8 @@ async function doSearchRaw(q, token, type = 'tv', year = null) {
             headers: getSimklHeaders(token)
         });
         if (!res.ok) return [];
-        return await res.json();
+        const json = await res.json();
+        return Array.isArray(json) ? json : [];
     } catch (e) {
         console.error("[CRUNCHFLIX] Simkl Search failed:", e);
         return [];
