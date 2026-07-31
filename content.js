@@ -332,19 +332,25 @@ function connectToBackground() {
 }
 
 function sendToPort(action, payload) {
-    if (isInvalidated) return;
+    if (isInvalidated || chrome.runtime?.id === undefined) {
+        if (!isInvalidated) {
+            isInvalidated = true;
+            stopAllIntervals();
+            showRefreshToast();
+        }
+        return;
+    }
     try {
         if (port) {
             port.postMessage({ action, payload });
         }
     } catch (e) {
-        console.error("[CRUNCHFLIX] Error sending to port:", e);
-        if (e.message.includes("Extension context invalidated")) {
+        if (e.message?.includes("Extension context invalidated")) {
             isInvalidated = true;
+            stopAllIntervals();
             showRefreshToast();
-            remoteLog("Extension context invalidated in sendToPort", "PORT", "WARN");
         } else {
-            remoteLog(`Port error: ${e.message}`, "PORT", "ERROR");
+            console.error("[CRUNCHFLIX] Error sending to port:", e);
         }
     }
 }
@@ -648,7 +654,7 @@ function initPrimeVideo() {
 }
 
 (function init() {
-    const CS_VERSION = "2.0.1";
+    const CS_VERSION = "2.0.2";
     console.log(`[CRUNCHFLIX] Content script loaded. Version: ${CS_VERSION}`);
     remoteLog(`Content script loaded on ${window.location.hostname}. Version: ${CS_VERSION}`, "INIT");
     connectToBackground();
