@@ -48,20 +48,20 @@ function setupListeners() {
         const query = e.target.value.trim();
         if (query.length < 3) return;
 
-        // NEW: URL Parsing for direct links
-        if (query.startsWith('http') && query.includes('trakt.tv')) {
-            handleTraktUrl(query);
+        // URL Parsing for direct links
+        if (query.startsWith('http') && (query.includes('simkl.com') || query.includes('trakt.tv'))) {
+            handleSimklUrl(query);
             return;
         }
 
         searchTimeout = setTimeout(() => {
-            performTraktSearch(query);
+            performSimklSearch(query);
         }, 500);
     });
 }
 
-function handleTraktUrl(url) {
-    const showMatch = url.match(/shows\/([^/]+)/);
+function handleSimklUrl(url) {
+    const showMatch = url.match(/shows\/([^/]+)/) || url.match(/tv\/([^/]+)/);
     const movieMatch = url.match(/movies\/([^/]+)/);
     const seasonMatch = url.match(/seasons\/(\d+)/);
     const epMatch = url.match(/episodes\/(\d+)/);
@@ -73,9 +73,9 @@ function handleTraktUrl(url) {
     resultsContainer.innerHTML = '<p style="padding: 10px; font-size:12px;">Resolving Precision Link...</p>';
     resultsContainer.style.display = 'block';
 
-    chrome.runtime.sendMessage({ action: "resolveTraktUrl", url }, (response) => {
+    chrome.runtime.sendMessage({ action: "resolveSimklUrl", url }, (response) => {
         if (response && response.success && response.results.length > 0) {
-            const res = response.results.find(r => (r.show || r.movie)?.ids.slug === slug) || response.results[0];
+            const res = response.results[0];
             selectTraktItem(res);
 
             if (seasonMatch) document.getElementById('manual-season').value = seasonMatch[1];
@@ -190,22 +190,24 @@ function hideFixModal() {
     document.getElementById('fix-modal').classList.remove('active');
 }
 
-async function performTraktSearch(query) {
+async function performSimklSearch(query) {
     const resultsContainer = document.getElementById('search-results-mini');
-    resultsContainer.innerHTML = '<p style="padding: 10px; font-size:12px;">Searching Trakt...</p>';
+    resultsContainer.innerHTML = '<p style="padding: 10px; font-size:12px;">Searching Simkl...</p>';
     resultsContainer.style.display = 'block';
 
-    chrome.runtime.sendMessage({ action: "performTraktSearch", query, type: currentFixItem.seriesTitle ? 'show' : 'movie' }, (response) => {
+    const searchType = currentFixItem?.seriesTitle ? 'tv' : 'movie';
+    chrome.runtime.sendMessage({ action: "performSimklSearch", query, type: searchType }, (response) => {
         if (response && response.success && response.results.length > 0) {
             resultsContainer.innerHTML = '';
             response.results.forEach(res => {
-                const item = res.show || res.movie;
+                const item = res.show || res.movie || res;
                 const div = document.createElement('div');
                 div.className = 'search-item-mini';
+                const typeLabel = (res.type || item.type || 'TV').toUpperCase();
                 div.innerHTML = `
                     <div class="search-item-info">
-                        <span class="item-title-mini">${item.title} (${item.year})</span>
-                        <span class="item-meta-mini">${res.type.toUpperCase()}</span>
+                        <span class="item-title-mini">${item.title} (${item.year || ''})</span>
+                        <span class="item-meta-mini">${typeLabel}</span>
                     </div>
                 `;
                 div.addEventListener('click', () => selectTraktItem(res));
@@ -219,10 +221,10 @@ async function performTraktSearch(query) {
 
 function selectTraktItem(res) {
     selectedTraktItem = res;
-    const item = res.show || res.movie;
+    const item = res.show || res.movie || res;
     document.getElementById('search-results-mini').style.display = 'none';
     document.getElementById('trakt-search-input').value = item.title;
-    document.getElementById('selected-info').innerHTML = `Linked to: <b>${item.title}</b> (${item.year})`;
+    document.getElementById('selected-info').innerHTML = `Linked to: <b>${item.title}</b> (${item.year || ''})`;
 }
 
 async function saveOverride() {
@@ -263,10 +265,10 @@ function startSync() {
     }
 
     showLoader();
-    chrome.runtime.sendMessage({ action: "bulkSyncToTrakt", items: selected }, (response) => {
+    chrome.runtime.sendMessage({ action: "bulkSyncToSimkl", items: selected }, (response) => {
         hideLoader();
         if (response && response.success) {
-            alert(`Successfully synced ${response.added?.episodes || 0} episodes and ${response.added?.movies || 0} movies!`);
+            alert(`Successfully synced items to Simkl!`);
             fetchHistory(); // Refresh
         } else {
             alert("Sync failed: " + (response?.error || "Unknown error"));

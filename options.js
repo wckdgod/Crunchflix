@@ -9,7 +9,7 @@ function saveOptions() {
     const status = document.getElementById('status');
 
     if (!clientId || !clientSecret) {
-        showStatus('Please enter both Trakt Client ID and Client Secret.', 'error');
+        showStatus('Please enter both Simkl Client ID and Client Secret.', 'error');
         return;
     }
 
@@ -28,8 +28,8 @@ function saveOptions() {
 
 function restoreOptions() {
     chrome.storage.local.get(['client_id', 'client_secret', 'tmdb_api_key', 'deepseek_api_key'], (items) => {
-        if (items.client_id) document.getElementById('clientId').value = items.client_id;
-        if (items.client_secret) document.getElementById('clientSecret').value = items.client_secret;
+        document.getElementById('clientId').value = items.client_id || "a63b63d85af0e02d4cfc791d87c881f710693ecc86d280fc98f8618f8f1faaad";
+        document.getElementById('clientSecret').value = items.client_secret || "9df1b7e078119eec54b694c216667be23f5a0c434aa7e7792e1ddbffb7d47336";
         if (items.tmdb_api_key) document.getElementById('tmdbApiKey').value = items.tmdb_api_key;
         if (items.deepseek_api_key) document.getElementById('deepseekApiKey').value = items.deepseek_api_key;
     });

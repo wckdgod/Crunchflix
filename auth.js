@@ -1,23 +1,25 @@
-import { API_URL } from './config.js';
+import { CLIENT_ID, CLIENT_SECRET, getSimklUrl, getSimklHeaders } from './config.js';
 
 async function startAuth() {
     try {
-        const keys = await getApiKeys();
-        if (!keys) return; // Error handled in getApiKeys
+        const clientId = CLIENT_ID;
+        const pinUrl = getSimklUrl('/oauth/pin');
 
-        const response = await fetch(`${API_URL}/oauth/device/code`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ client_id: keys.clientId })
+        const response = await fetch(pinUrl, {
+            method: 'GET',
+            headers: getSimklHeaders()
         });
 
-        if (!response.ok) throw new Error('Failed to get code from Trakt. Check Client ID.');
+        if (!response.ok) throw new Error('Failed to get PIN from Simkl. Check API credentials.');
 
         const data = await response.json();
+        if (data.result !== 'OK' || !data.user_code) {
+            throw new Error(data.message || 'Invalid response from Simkl PIN service.');
+        }
+
         const userCode = data.user_code;
-        const verificationUrl = data.verification_url;
-        const interval = data.interval;
-        const deviceCode = data.device_code;
+        const verificationUrl = data.verification_url || data.verification_uri || 'https://simkl.com/pin';
+        const interval = data.interval || 5;
 
         document.getElementById('loading').style.display = 'none';
         document.getElementById('auth-content').style.display = 'block';
@@ -27,55 +29,45 @@ async function startAuth() {
         link.href = verificationUrl;
         link.textContent = verificationUrl;
 
-        pollForToken(deviceCode, interval, keys.clientId, keys.clientSecret);
+        pollForToken(userCode, interval, clientId);
 
     } catch (error) {
         showError(error.message);
     }
 }
 
-function pollForToken(deviceCode, interval, clientId, clientSecret) {
+function pollForToken(userCode, interval, clientId) {
     const pollInterval = setInterval(async () => {
         try {
-            const response = await fetch(`${API_URL}/oauth/device/token`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    code: deviceCode,
-                    client_id: clientId,
-                    client_secret: clientSecret
-                })
+            const checkUrl = getSimklUrl(`/oauth/pin/${userCode}`);
+            const response = await fetch(checkUrl, {
+                method: 'GET',
+                headers: getSimklHeaders()
             });
 
-            if (response.status === 200) {
+            if (response.ok) {
                 const data = await response.json();
-                clearInterval(pollInterval);
+                if (data.result === 'OK' && data.access_token) {
+                    clearInterval(pollInterval);
 
-                // Save token and close
-                chrome.storage.local.set({ 'trakt_token': data }, () => {
-                    // Slight delay to ensure storage writes
-                    setTimeout(() => window.close(), 500);
-                });
+                    const tokenData = {
+                        access_token: data.access_token,
+                        created_at: Math.floor(Date.now() / 1000)
+                    };
 
-            } else if (response.status === 404 || response.status === 409 || response.status === 410) {
-                clearInterval(pollInterval);
-                showError("Authorization expired. Please try again.");
+                    chrome.storage.local.set({ 'simkl_token': tokenData, 'client_id': CLIENT_ID, 'client_secret': CLIENT_SECRET }, () => {
+                        setTimeout(() => window.close(), 500);
+                    });
+                } else if (data.result === 'KO' && data.message === 'Authorization expired') {
+                    clearInterval(pollInterval);
+                    showError("Authorization expired. Please try again.");
+                }
+                // Pending, continue polling
             }
-            // 400 = Pending, continue polling
         } catch (error) {
-            console.error(error);
-            // Don't modify UI on network glitches during poll, just retry
+            console.error('Error polling Simkl token:', error);
         }
     }, interval * 1000);
-}
-
-async function getApiKeys() {
-    const storage = await chrome.storage.local.get(['client_id', 'client_secret']);
-    if (!storage.client_id || !storage.client_secret) {
-        showError("Trakt API Keys missing. Please configure them in Settings.");
-        return null;
-    }
-    return { clientId: storage.client_id, clientSecret: storage.client_secret };
 }
 
 function showError(msg) {

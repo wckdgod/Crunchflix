@@ -1,9 +1,25 @@
-const API_URL = "https://api.trakt.tv";
+import { API_URL, CLIENT_ID, CLIENT_SECRET, APP_NAME, APP_VERSION, getSimklUrl, getSimklHeaders } from './config.js';
+
+const VERSION = "1.7.4";
+console.log(`[CRUNCHFLIX] Background script loaded. Version: ${VERSION}`);
+
+async function remoteLog(message, context = 'BG', level = 'INFO') {
+    try {
+        await fetch('http://localhost:9999/log', {
+            method: 'POST',
+            body: JSON.stringify({ message, context, level }),
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (e) {
+        // Silent fail if logger isn't running
+    }
+}
+remoteLog(`Background service worker started. Build: ${VERSION}`, 'INIT');
 
 // --- State Management ---
 const ports = new Map();         // tabId -> port
 const shaktiKeys = new Map();    // tabId -> { buildId, authUrl }
-const traktSearchCache = new Map(); // title -> searchResult
+const simklSearchCache = new Map(); // title -> searchResult
 const tabResolvedTitle = new Map(); // tabId -> { title, epId }
 const scrobbledSessionHistory = new Set(); // title:S:E
 const resolvedTitleCache = new Map(); // tabId:epId -> resolvedMetadata
@@ -55,33 +71,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         fetchNetflixHistory(sendResponse);
         return true;
     }
-    else if (message.action === "bulkCheckTrakt") {
-        bulkCheckTrakt(message.payload.items, sendResponse);
+    else if (message.action === "bulkCheckTrakt" || message.action === "bulkCheckSimkl") {
+        bulkCheckSimkl(message.payload?.items || message.items, sendResponse);
         return true;
     }
-    else if (message.action === "bulkSyncToTrakt") {
-        bulkSyncToTrakt(message.payload?.items || message.items, sendResponse);
+    else if (message.action === "bulkSyncToTrakt" || message.action === "bulkSyncToSimkl") {
+        bulkSyncToSimkl(message.payload?.items || message.items, sendResponse);
         return true;
     }
-    else if (message.action === "performTraktSearch") {
-        handleTraktSearch(message.query, message.type, sendResponse);
+    else if (message.action === "performTraktSearch" || message.action === "performSimklSearch") {
+        handleSimklSearch(message.query, message.type, sendResponse);
         return true;
     }
-    else if (message.action === "resolveTraktUrl") {
-        resolveTraktUrl(message.url, sendResponse);
+    else if (message.action === "resolveTraktUrl" || message.action === "resolveSimklUrl") {
+        resolveSimklUrl(message.url, sendResponse);
         return true;
     }
-    else if (message.action === "searchTrakt" || message.action === "searchTraktForPopup") {
+    else if (message.action === "searchTrakt" || message.action === "searchTraktForPopup" || message.action === "searchSimkl" || message.action === "searchSimklForPopup") {
         (async () => {
             try {
-                const storage = await chrome.storage.local.get(['trakt_token', 'client_id']);
-                const token = storage.trakt_token?.access_token;
-                const clientId = storage.client_id;
-                if (!token) throw new Error("No Trakt token found.");
+                const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token']);
+                const token = storage.simkl_token?.access_token || storage.trakt_token?.access_token;
+                if (!token) throw new Error("No Simkl token found.");
 
-                // For popup search, we always want 'show' or 'movie' results as a list
-                const searchType = message.payload.type || 'show';
-                const results = await doSearchRaw(message.payload.query, token, searchType);
+                const searchType = message.payload?.type || 'tv';
+                const results = await doSearchRaw(message.payload?.query || message.query, token, searchType);
                 sendResponse({ success: true, results: results });
             } catch (e) {
                 console.error(e);
@@ -104,11 +118,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 };
                 await chrome.storage.local.set({ corrections });
 
-                traktSearchCache.delete(originalTitle);
-                traktSearchCache.delete(cleanTitle);
+                simklSearchCache.delete(originalTitle);
+                simklSearchCache.delete(cleanTitle);
 
                 sendResponse({ success: true });
-                // Re-trigger resolution if tab exists
                 if (tabId) handleScrobble({ title: originalTitle, status: 'playing', progress: 1 }, sender);
             } catch (e) {
                 console.error(e);
@@ -120,28 +133,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     else if (message.action === "clearCache") {
         const title = message.payload?.title;
         if (title) {
-            traktSearchCache.delete(title);
+            simklSearchCache.delete(title);
             const clean = sanitizeShowTitle(title);
-            traktSearchCache.delete(clean);
+            simklSearchCache.delete(clean);
         }
         sendResponse({ success: true });
     }
     else if (message.action === "CLEAR_MEMORY_CACHE") {
-        traktSearchCache.clear();
+        simklSearchCache.clear();
         sendResponse({ success: true });
     }
 });
 
 // --- Lifecycle Management ---
 chrome.tabs.onUpdated.addListener((tabId, info) => {
-    if (info.url) {
-        // New URL means new episode — purge all entries for this tab
+    if (info.url || info.status === 'loading') {
+        // Aggressively clear tab metadata on any navigation or reload
+        console.log(`[CRUNCHFLIX] Tab ${tabId} updated (${info.status || 'url change'}), clearing metadata...`);
         for (const key of resolvedTitleCache.keys()) {
             if (key.startsWith(`${tabId}:`)) resolvedTitleCache.delete(key);
         }
         tabResolvedTitle.delete(tabId);
-        // We keep tabNetflixKeys (buildId/authUrl) as they usually persist for the session,
-        // but we clear the resolved title so it is re-fetched for the new epId.
+        
+        // Clear nowPlaying if it belonged to this tab
+        chrome.storage.local.get(['nowPlaying'], (res) => {
+            if (res.nowPlaying && res.nowPlaying.tabId === tabId) {
+                chrome.storage.local.remove('nowPlaying');
+            }
+        });
     }
 });
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -150,6 +169,23 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     }
     shaktiKeys.delete(tabId);
     ports.delete(tabId);
+
+    // Clear nowPlaying if it belonged to this tab
+    chrome.storage.local.get(['nowPlaying'], (res) => {
+        if (res.nowPlaying && res.nowPlaying.tabId === tabId) {
+            chrome.storage.local.remove('nowPlaying');
+        }
+    });
+});
+
+chrome.runtime.onStartup.addListener(() => {
+    console.log("[CRUNCHFLIX] Browser startup, clearing nowPlaying state.");
+    chrome.storage.local.remove('nowPlaying');
+});
+
+chrome.runtime.onInstalled.addListener(() => {
+    console.log("[CRUNCHFLIX] Extension installed/updated, clearing nowPlaying state.");
+    chrome.storage.local.remove('nowPlaying');
 });
 
 async function getShowDetails(idOrSlug) {
@@ -347,14 +383,14 @@ async function handleScrobble(data, sender) {
     const tabId = sender?.tab?.id;
     if (!tabId) return;
 
+    const tab = await chrome.tabs.get(tabId).catch(() => null);
+    const tabUrl = tab?.url || "";
+
     console.log("[CRUNCHFLIX] Processing scrobble heartbeat...");
 
     // ── 1. RESOLUTION: Define the clean title ──
 
     try {
-        const tab = await chrome.tabs.get(tabId);
-        const tabUrl = tab?.url || '';
-
         if (tabUrl.includes('netflix.com')) {
             const epId = extractEpId(tabUrl);
             console.log(`[CRUNCHFLIX] Netflix match: epId=${epId} from URL: ${tabUrl}`);
@@ -409,15 +445,25 @@ async function handleScrobble(data, sender) {
     }
 
     // ── 3. VALIDATION: Handle generic titles and retries ──
-    const GENERIC_TITLES = ["Vilos", "Netflix", "Crunchyroll", "Watch", "{iframe, needs metadata}", ""];
-    if (!data.title || GENERIC_TITLES.some(t => data.title.trim().toLowerCase() === t.toLowerCase())) {
+    const isGenericTitle = (title) => {
+        if (!title) return true;
+        const t = title.trim().toLowerCase();
+        if (t === "") return true;
+        if (t.includes("season") && !t.includes("episode") && !t.includes("ep.") && !t.includes("ep ")) return true;
+        const exactMatches = ["vilos", "netflix", "crunchyroll", "watch", "{iframe, needs metadata}", "jiohotstar", "jio hotstar", "hotstar", "disney+ hotstar", "prime video", "primevideo", "amazon prime", "amazon prime video", "amazon"];
+        if (exactMatches.includes(t)) return true;
+        if (t.includes("watch tv shows, movies") || t.includes("live cricket") || t.startsWith("netflix - ")) return true;
+        return false;
+    };
+
+    if (isGenericTitle(data.title)) {
         const tabTitle = sender?.tab?.title || "";
         // Only use tab title if it's not also a generic name
-        data.title = GENERIC_TITLES.some(t => tabTitle.trim().toLowerCase() === t.toLowerCase()) ? null : tabTitle;
+        data.title = isGenericTitle(tabTitle) ? null : tabTitle;
     }
 
     // If STILL generic, schedule a retry in 5s (but NOT more than 3 times per tab to avoid spam)
-    if (!data.title || GENERIC_TITLES.some(t => (data.title || '').trim().toLowerCase() === t.toLowerCase())) {
+    if (isGenericTitle(data.title)) {
         if (sender?.tab?.id) {
             const retryKey = `retry:${sender.tab.id}`;
             const retryCount = (globalThis[retryKey] || 0) + 1;
@@ -437,17 +483,41 @@ async function handleScrobble(data, sender) {
     // Success — reset retry count
     if (sender?.tab?.id) delete globalThis[`retry:${sender.tab.id}`];
 
-    // 1. Get Token and Client ID
+    // Get current state to check if we need to update UI
     const storage = await chrome.storage.local.get(['trakt_token', 'corrections', 'client_id', 'nowPlaying']);
-    const token = storage.trakt_token?.access_token;
 
-    if (!token) {
-        console.log("No Trakt token found, ignoring.");
-        return;
+    // IMMEDIATE UI FEEDBACK: Update storage with the raw title so the popup doesn't stay stuck on the previous show
+    const currentNP = storage.nowPlaying || {};
+    const isNewShow = (currentNP.rawTitle || currentNP.title) !== data.title && !isGenericTitle(data.title);
+    
+    // STATE PROTECTION: If we already have a detailed "scrobbling" status from a tab,
+    // don't let a generic "resolving" message from an iframe (usually data.fromIframe) overwrite it.
+    const isIframeOverwrite = data.fromIframe && currentNP.status === 'scrobbling' && currentNP.tabId === tabId;
+
+    if (isNewShow && !isIframeOverwrite) {
+        console.log(`[CRUNCHFLIX] New show detected: "${data.title}". Overwriting stale state ("${currentNP.rawTitle || currentNP.title}").`);
+        
+        // Reset throttle to ensure this new show's first message always processes
+        lastScrobble.title = null;
+        lastScrobble.timestamp = 0;
+
+        chrome.storage.local.set({
+            'nowPlaying': {
+                status: 'resolving',
+                title: data.title,
+                rawTitle: data.title,
+                timestamp: Date.now(),
+                platform: data.platform,
+                tabId: tabId
+            }
+        });
     }
 
-    if (!storage.client_id) {
-        console.log("No Client ID configured, ignoring.");
+    // 1. Get Token
+    const token = storage.simkl_token?.access_token || storage.trakt_token?.access_token;
+
+    if (!token) {
+        console.log("No Simkl token found, ignoring.");
         return;
     }
 
@@ -457,7 +527,7 @@ async function handleScrobble(data, sender) {
     if (!parsed) {
         console.log("Could not parse title:", data.title);
         chrome.storage.local.set({
-            'nowPlaying': { status: 'parse_error', title: data.title }
+            'nowPlaying': { status: 'parse_error', title: data.title, rawTitle: data.title }
         });
         return;
     }
@@ -472,23 +542,29 @@ async function handleScrobble(data, sender) {
         }
     }
 
-    // 3. Search Trakt (Priority: 1. Manual Corrections, 2. Memory Cache, 3. API Search)
+    console.log(`[CRUNCHFLIX] Successfully parsed metadata: "${parsed.title}" S${parsed.season}E${parsed.episode}`);
+
+    if (tabId && platform === 'netflix') {
+        tabResolvedTitle.set(tabId, { title: data.title, epId: extractEpId(tabUrl) });
+    }
+
+    let finalImage = null;
+    let synopsis = null;
+    
+    // 3. Search Simkl (Priority: 1. Manual Corrections, 2. Memory Cache, 3. API Search)
     let searchResult = null;
     const corrections = storage.corrections || {};
     const cleanForCorrection = sanitizeShowTitle(parsed.title);
 
     if (corrections[cleanForCorrection]) {
-        // ── 1. USER CORRECTIONS (HIGHEST PRIORITY) ──
         const correctionObj = corrections[cleanForCorrection];
 
-        // Retrieve the explicitly mapped show data, if it exists
         if (correctionObj.data || !correctionObj.offsets) {
-            const resultData = correctionObj.data || correctionObj; // Fallback for old format
+            const resultData = correctionObj.data || correctionObj;
             console.log(`[CRUNCHFLIX] Using show-level override for "${cleanForCorrection}":`, (resultData.show || resultData.movie)?.title);
             searchResult = resultData;
         }
 
-        // ───── Apply Episode Offsets ─────
         if (parsed.type === 'episode' && correctionObj.offsets) {
             const mappingKey = `${parsed.season}_${parsed.episode}`;
             if (correctionObj.offsets[mappingKey]) {
@@ -500,125 +576,65 @@ async function handleScrobble(data, sender) {
         }
     }
 
-    // If there was no show-level override (e.g. they only overrode the episode number), fallback to cache/API
-    if (!searchResult && traktSearchCache.has(parsed.title)) {
-        // ── 2. MEMORY CACHE ──
-        const cached = traktSearchCache.get(parsed.title);
-        // Type + ID validation: don't use a movie cache for an episode or results with missing IDs
-        const cachedEntity = cached.show || cached.movie;
-        const cachedIsShow = !!cached.show;
+    if (!searchResult && simklSearchCache.has(parsed.title)) {
+        const cached = simklSearchCache.get(parsed.title);
+        const cachedEntity = cached.show || cached.movie || cached;
+        const cachedIsShow = !!cached.show || cached.ids?.simkl || cached.ids?.imdb;
         const needsShow = parsed.type === 'episode';
-        if (cachedIsShow === needsShow && cachedEntity?.ids?.trakt) {
-            console.log(`[CRUNCHFLIX] Using search cache for "${parsed.title}" (Trakt ID: ${cachedEntity.ids.trakt})`);
+        if (cachedIsShow === needsShow) {
+            console.log(`[CRUNCHFLIX] Using search cache for "${parsed.title}"`);
             searchResult = cached;
         } else {
-            console.log(`[CRUNCHFLIX] Cache invalid for "${parsed.title}" (type match: ${cachedIsShow === needsShow}, has ID: ${!!cachedEntity?.ids?.trakt}). Evicting...`);
-            traktSearchCache.delete(parsed.title);
+            simklSearchCache.delete(parsed.title);
         }
     }
 
     if (!searchResult) {
-        // ── 3. API SEARCH BRIDGE ──
-        searchResult = await searchTrakt(parsed.title, parsed.type, token, data.year);
+        searchResult = await searchSimkl(parsed.title, parsed.type, token, data.year);
         if (searchResult) {
-            // Only cache results with valid IDs
-            const entity = searchResult.show || searchResult.movie;
-            if (entity?.ids?.trakt) {
-                traktSearchCache.set(parsed.title, searchResult);
-            }
+            simklSearchCache.set(parsed.title, searchResult);
         }
     }
 
     if (!searchResult) {
-        console.log("Show not found on Trakt:", parsed.title);
+        console.log("Show not found on Simkl:", parsed.title);
         chrome.storage.local.set({
-            'nowPlaying': { status: 'not_found', title: parsed.title, progress: data.progress || 0 }
+            'nowPlaying': { status: 'not_found', title: parsed.title, rawTitle: data.title, progress: data.progress || 0 }
         });
         return;
     }
 
-    const show = searchResult.show || searchResult.movie;
-    if (!show?.ids?.trakt) {
-        console.error(`[CRUNCHFLIX] Search result for "${parsed.title}" has no valid Trakt ID. Skipping scrobble.`);
-        chrome.storage.local.set({
-            'nowPlaying': { status: 'not_found', title: parsed.title, progress: data.progress || 0 }
-        });
-        // Evict the broken cache entry
-        traktSearchCache.delete(parsed.title);
-        return;
-    }
-    console.log("Found Item:", show.title, "ID:", show.ids.trakt);
+    const show = searchResult.show || searchResult.movie || searchResult;
+    console.log("Found Item on Simkl:", show.title, "ID:", show.ids?.simkl || show.ids?.imdb || show.ids?.tmdb);
 
-    // Aesthetic Upgrade: Prefer TMDB Image, show Trakt title
-    let finalImage = null;
-    const tmdbId = show.ids.tmdb;
-
-    if (tmdbId) {
-        finalImage = await getTmdbImageById(tmdbId, parsed.type);
+    finalImage = show.poster ? `https://simkl.in/posters/${show.poster}_m.jpg` : null;
+    if (!finalImage && show.ids?.tmdb) {
+        finalImage = await getTmdbImageById(show.ids.tmdb, parsed.type);
     }
     if (!finalImage) {
-        finalImage = show?.images?.poster?.medium || show?.images?.poster?.thumb;
-    }
-    if (!finalImage) {
-        const tmdbImage = await getTmdbImage(parsed.title, parsed.type);
-        if (tmdbImage) finalImage = tmdbImage;
+        finalImage = await getTmdbImage(parsed.title, parsed.type);
     }
 
-    // Fetch episode synopsis from Trakt (non-blocking, best-effort)
-    let synopsis = null;
-    if (parsed.type === 'episode' && show?.ids?.trakt) {
-        synopsis = await getTraktEpisodeOverview(
-            show.ids.trakt,
-            parsed.season || 1,
-            parsed.episode,
-            token
-        );
-    } else if (parsed.type === 'movie' && show?.overview) {
-        synopsis = show.overview;
+    synopsis = show.overview || null;
+    if (parsed.type === 'episode' && show.ids?.simkl) {
+        const epOverview = await getSimklEpisodeOverview(show.ids.simkl, parsed.season || 1, parsed.episode, token);
+        if (epOverview) synopsis = epOverview;
     }
 
-    // Fetch extended show/movie details for runtime if not already present
-    if (!show.runtime && show?.ids?.trakt) {
-        try {
-            const extStorage = await chrome.storage.local.get(['client_id']);
-            const showType = parsed.type === 'episode' ? 'shows' : 'movies';
-            const extUrl = `${API_URL}/${showType}/${show.ids.trakt}?extended=full`;
-            const extRes = await fetch(extUrl, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'trakt-api-version': '2',
-                    'trakt-api-key': extStorage.client_id,
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            if (extRes.ok) {
-                const extData = await extRes.json();
-                if (extData.runtime) show.runtime = extData.runtime;
-                if (!synopsis && extData.overview) synopsis = extData.overview;
-            }
-        } catch (e) {
-            console.warn('[CRUNCHFLIX] Extended metadata fetch failed:', e);
-        }
-    }
-
-    // Prepare Payload
     let actionType = 'stop';
     if (data.status === 'playing') actionType = 'start';
     else if (data.status === 'paused') actionType = 'pause';
 
-    // THROTTLING LOGIC
     const now = Date.now();
     const isSameEpisode = (parsed.title === lastScrobble.title &&
         parsed.season === lastScrobble.season &&
         parsed.episode === lastScrobble.episode);
     const isSameStatus = actionType === lastScrobble.status;
     const timeDiff = now - lastScrobble.timestamp;
-    const THROTTLE_LIMIT = 10000; // 10 seconds
+    const THROTTLE_LIMIT = 10000;
 
     if (isSameEpisode && isSameStatus && timeDiff < THROTTLE_LIMIT) {
         console.log(`[CRUNCHFLIX] Throttling API call (${actionType}). Last sent ${timeDiff / 1000}s ago.`);
-
-        // Even if we skip Trakt, ensure the local storage always has the latest progress / metadata for the UI
         chrome.storage.local.get(['nowPlaying'], (res) => {
             if (res.nowPlaying && res.nowPlaying.title === parsed.title) {
                 chrome.storage.local.set({
@@ -629,8 +645,6 @@ async function handleScrobble(data, sender) {
         return;
     }
 
-    // Status changed (e.g. play↔pause) on the same episode within throttle window:
-    // update the popup badge without hitting the API.
     if (isSameEpisode && !isSameStatus && timeDiff < THROTTLE_LIMIT) {
         const existing = await chrome.storage.local.get(['nowPlaying']);
         if (existing.nowPlaying) {
@@ -639,30 +653,44 @@ async function handleScrobble(data, sender) {
                 'nowPlaying': { ...existing.nowPlaying, status: uiStatus, timestamp: Date.now(), progress: data.progress || existing.nowPlaying.progress || 0, synopsis: synopsis || existing.nowPlaying.synopsis }
             });
         }
-        // Still fall through to send the status-change to Trakt
     }
+
+    const netflixEpId = extractEpId(tabUrl);
+    const progressVal = Math.min(100, Math.max(0, parseFloat((data.progress || 1).toFixed(2))));
 
     const payload = {};
     if (parsed.type === 'episode') {
         let targetSeason = parsed.season;
-        if (!targetSeason && searchResult.show && searchResult.show.aired_episodes && searchResult.show.seasons) {
-            targetSeason = 1;
-        }
-
-        payload.episode = {
-            season: targetSeason || 1,
-            number: parsed.episode
-        };
-        payload.show = {
-            ids: { trakt: show.ids.trakt }
-        };
+        payload.shows = [
+            {
+                title: show.title || parsed.title,
+                year: show.year || data.year || null,
+                ids: {
+                    ...(show.ids || {}),
+                    ...(netflixEpId ? { netflix: parseInt(netflixEpId) } : {})
+                },
+                episodes: [
+                    {
+                        season: targetSeason || 1,
+                        number: parsed.episode
+                    }
+                ]
+            }
+        ];
     } else {
-        payload.movie = {
-            ids: { trakt: searchResult.movie.ids.trakt }
-        };
+        payload.movies = [
+            {
+                title: show.title || parsed.title,
+                year: show.year || data.year || null,
+                ids: {
+                    ...(show.ids || {}),
+                    ...(netflixEpId ? { netflix: parseInt(netflixEpId) } : {})
+                }
+            }
+        ];
     }
 
-    payload.progress = data.progress > 0 ? data.progress : 1;
+    payload.progress = progressVal;
     const historyKey = `${parsed.title}:${parsed.season}:${parsed.episode}`;
 
     if (payload.progress >= 85) {
@@ -673,37 +701,34 @@ async function handleScrobble(data, sender) {
         }
     }
 
-    console.log(`[CRUNCHFLIX] MATCHED SHOW: ${parsed.title} (Trakt ID: ${searchResult.show?.ids?.trakt})`);
+    console.log(`[CRUNCHFLIX] MATCHED SHOW: ${parsed.title} (Simkl ID: ${show.ids?.simkl})`);
 
-    // NEW: Send Toast Notification to Content Script
     if (sender?.tab?.id) {
         chrome.tabs.sendMessage(sender.tab.id, {
             action: "showToast",
-            message: `Identified: ${searchResult.show?.title || searchResult.movie?.title}`
-        }).catch(() => { }); // Ignore errors if tab closed/navigated
+            message: `Identified: ${show.title}`
+        }).catch(() => { });
     }
 
-    console.log(`[CRUNCHFLIX] Sending ${actionType} to Trakt...`, payload);
-    await sendScrobble(actionType, payload, token, storage.client_id);
+    console.log(`[CRUNCHFLIX] Sending ${actionType} to Simkl...`, payload);
+    await sendScrobble(actionType, payload, token);
 
     if (actionType === 'stop') {
         scrobbledSessionHistory.add(historyKey);
     }
 
-    // Update throttle tracking
     lastScrobble.title = parsed.title;
     lastScrobble.season = parsed.season;
     lastScrobble.episode = parsed.episode;
     lastScrobble.status = actionType;
     lastScrobble.timestamp = Date.now();
 
-    // Update Storage for Popup UI
-    // If we're an episode, we might have resolved a targetSeason from the API if parsed.season was null
-    const finalSeason = parsed.type === 'episode' ? (payload.episode ? payload.episode.season : (parsed.season || 1)) : parsed.season;
+    const finalSeason = parsed.type === 'episode' ? (parsed.season || 1) : parsed.season;
 
     chrome.storage.local.set({
         'nowPlaying': {
             title: parsed.title,
+            rawTitle: data.title,
             type: parsed.type,
             season: finalSeason,
             episode: parsed.episode,
@@ -713,9 +738,8 @@ async function handleScrobble(data, sender) {
             traktTitle: show.title,
             traktYear: show.year,
             synopsis: synopsis,
-            // New Metadata Fields
-            rating: show.rating ? show.rating.toFixed(1) : null,
-            genres: show.genres ? show.genres.slice(0, 3) : [], // Limit to 3
+            rating: show.ratings?.simkl?.rating ? show.ratings.simkl.rating.toFixed(1) : null,
+            genres: show.genres ? show.genres.slice(0, 3) : [],
             runtime: show.runtime || null,
             certification: show.certification || null,
             network: show.network || null
@@ -723,28 +747,25 @@ async function handleScrobble(data, sender) {
     });
 }
 
-async function getTraktEpisodeOverview(showId, season, episode, token) {
+async function getSimklEpisodeOverview(showId, season, episode, token) {
     try {
-        const storage = await chrome.storage.local.get(['client_id']);
-        if (!storage.client_id) return null;
-
-        const url = `${API_URL}/shows/${showId}/seasons/${season}/episodes/${episode}?extended=full`;
+        if (!showId) return null;
+        const url = getSimklUrl(`/tv/episodes/${showId}`);
         const res = await fetch(url, {
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json',
-                'trakt-api-version': '2',
-                'trakt-api-key': storage.client_id,
-                'Authorization': `Bearer ${token}`
-            }
+            headers: getSimklHeaders(token)
         });
         if (!res.ok) return null;
-        const data = await res.json();
-        return data.overview || null;
+        const episodes = await res.json();
+        if (Array.isArray(episodes)) {
+            const ep = episodes.find(e => e.season == season && e.episode == episode);
+            return ep?.description || ep?.overview || null;
+        }
+        return null;
     } catch (e) {
-        console.warn('[CRUNCHFLIX] Could not fetch episode overview:', e);
+        console.warn('[CRUNCHFLIX] Could not fetch Simkl episode overview:', e);
         return null;
     }
+}
 }
 
 // This function is injected into the tab's MAIN frame by chrome.scripting.executeScript
@@ -829,28 +850,121 @@ function extractMetadataFromPage() {
                         showPart = mangledMatch[1].trim();
                     }
 
-                    return { title: `${showPart || text} - Season ${seMatch[1]} Episode ${seMatch[2]}` };
-                }
-                return { title: text };
-            }
-
-            // FALLBACK: hover overlay (only visible when paused / hovering)
-            const showEl = document.querySelector('h2');
-            const seasonEl = Array.from(document.querySelectorAll('h4')).find(el => /season/i.test(el.textContent));
-            const epEl = document.querySelector('[data-uia="evidence-overlay-episode-title"]');
-            if (showEl && epEl) {
-                const showName = showEl.textContent.trim();
-                const epText = epEl.textContent.trim();
-                let seasonNum = 1;
-                if (seasonEl) {
-                    const sMatch = seasonEl.textContent.match(/(\d+)/);
-                    if (sMatch) seasonNum = parseInt(sMatch[1]);
-                }
-                const epNum = epText.match(/(?:Ep\.?\s*|E)(\d+)/i);
-                if (epNum) {
-                    return { title: `${showName} - Season ${seasonNum} Episode ${epNum[1]}` };
+                return { title: `${showName} - Season ${seasonNum} Episode ${epNum[1]}` };
                 }
                 return { title: `${showName} - ${epText}` };
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    // --- Jio Hotstar ---
+    if (window.location.hostname.includes('hotstar.com') || window.location.hostname.includes('jiohotstar.com')) {
+        try {
+            // STRATEGY 0: Player UI (Highest accuracy)
+            const playerTitleEl = document.querySelector('div[aria-label*="Season"][aria-label*="Episode"][role="button"]');
+            if (playerTitleEl) {
+                const aria = playerTitleEl.getAttribute('aria-label');
+                if (aria) return { title: aria, year: year };
+            }
+
+            // STRATEGY 1: JSON-LD structured data
+            const ldScripts = document.querySelectorAll('script[type="application/ld+json"]');
+            for (const script of ldScripts) {
+                try {
+                    const json = JSON.parse(script.textContent);
+
+                    if (json.datePublished || json.uploadDate) {
+                        const d = new Date(json.datePublished || json.uploadDate);
+                        if (!isNaN(d.getFullYear())) year = d.getFullYear();
+                    }
+
+                    if (json['@type'] === 'TVEpisode' || json.partOfSeries) {
+                        const series = json.partOfSeries?.name;
+                        const episodeNumber = json.episodeNumber;
+                        const seasonNumber = json.partOfSeason?.seasonNumber;
+
+                        if (!year && json.partOfSeries?.startDate) {
+                            const d = new Date(json.partOfSeries.startDate);
+                            if (!isNaN(d.getFullYear())) year = d.getFullYear();
+                        }
+
+                        if (series && episodeNumber) {
+                            if (seasonNumber) {
+                                return { title: `${series} Season ${seasonNumber} - Episode ${episodeNumber}`, year: year };
+                            }
+                            return { title: `${series} - Episode ${episodeNumber}`, year: year };
+                        }
+                    }
+
+                    if (json['@type'] === 'Movie' && json.name) {
+                        return { title: json.name, year: year };
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            // STRATEGY 2: og:title meta tag
+            const ogTitle = document.querySelector('meta[property="og:title"]')?.content;
+            if (ogTitle) {
+                let cleaned = ogTitle
+                    .replace(/^Watch\s+/i, '')
+                    .replace(/\s*[|\-]\s*(?:Jio\s*)?Hotstar\s*$/i, '')
+                    .replace(/\s*[|\-]\s*Disney\+?\s*Hotstar\s*$/i, '')
+                    .replace(/\s+on\s+(?:Jio\s*)?Hotstar\s*$/i, '')
+                    .replace(/\s+on\s+Disney\+?\s*Hotstar\s*$/i, '')
+                    .trim();
+                if (cleaned) return { title: cleaned, year: year };
+            }
+
+            // STRATEGY 3: Document title fallback
+            let hsTitle = document.title
+                .replace(/^Watch\s+/i, '')
+                .replace(/\s*[|\-]\s*(?:Jio\s*)?Hotstar\s*$/i, '')
+                .replace(/\s*[|\-]\s*Disney\+?\s*Hotstar\s*$/i, '')
+                .replace(/\s+on\s+(?:Jio\s*)?Hotstar\s*$/i, '')
+                .replace(/\s+on\s+Disney\+?\s*Hotstar\s*$/i, '')
+                .trim();
+            if (hsTitle && !["JioHotstar", "Jio Hotstar", "Hotstar", "Disney+ Hotstar", ""].includes(hsTitle)) {
+                return { title: hsTitle, year: year };
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    // --- Amazon Prime Video ---
+    if (window.location.hostname.includes('primevideo.com') || window.location.hostname.includes('amazon.com') || window.location.hostname.includes('amazon.co.uk') || window.location.hostname.includes('amazon.co.jp') || window.location.hostname.includes('amazon.de') || window.location.hostname.includes('amazon.com.au')) {
+        try {
+            const querySelectorShadow = (selector, root = document) => {
+                const el = root.querySelector(selector);
+                if (el) return el;
+                try {
+                    const all = root.querySelectorAll('*');
+                    for (const item of all) {
+                        if (item.shadowRoot) {
+                            const found = querySelectorShadow(selector, item.shadowRoot);
+                            if (found) return found;
+                        }
+                    }
+                } catch (e) { }
+                return null;
+            };
+            const titleElement = querySelectorShadow('.atvwebplayersdk-title-text');
+            const subtitleElement = querySelectorShadow('.atvwebplayersdk-subtitle-text');
+
+            if (titleElement) {
+                const titleText = titleElement.textContent?.trim() || '';
+                const subtitleText = subtitleElement?.textContent?.trim() || '';
+
+                if (titleText) {
+                    const episodeMatch = subtitleText.match(
+                        /Season\s+(?<season>\d+),?\s*Ep\.?\s*(?<episode>\d+)\s*(?<episodeTitle>.*)/i
+                    );
+                    if (episodeMatch?.groups) {
+                        const season = episodeMatch.groups.season;
+                        const episode = episodeMatch.groups.episode;
+                        const epTitle = episodeMatch.groups.episodeTitle?.trim() || '';
+                        return { title: `${titleText} - Season ${season} Episode ${episode}` + (epTitle ? ` - ${epTitle}` : ''), year: year };
+                    }
+                    return { title: titleText, year: year };
+                }
             }
         } catch (e) { /* ignore */ }
     }
@@ -874,7 +988,7 @@ async function parseTitleWithAI(rawTitle) {
         // Create or reuse session
         if (!aiSession) {
             aiSession = await aiRoot.languageModel.create({
-                systemPrompt: 'You are a media parser. Extract the show title, season number, and episode number from the provided string. Return strictly valid JSON with keys: title, season, episode. If the string is a movie (no season/episode), set season and episode to null. Do not include any explanation or markdown, only the raw JSON object.'
+                systemPrompt: 'You are a media parser. Extract the show title, season number, episode number, and episode title from the provided string. Return strictly valid JSON with keys: title, season, episode, episodeTitle. If the season is missing, set to null. Extract the episode title from quotes if present. If it is a movie, set season/episode/episodeTitle to null.'
             });
         }
 
@@ -1013,11 +1127,13 @@ async function parseTitle(rawTitle, platform = 'netflix') {
 
     console.log(`[CRUNCHFLIX] parseTitle called with: "${rawTitle}" (platform: ${platform})`);
 
-    // 1. Try DeepSeek API (cloud, primary)
-    const deepseekResult = await parseTitleWithDeepSeek(rawTitle);
-    if (deepseekResult) {
-        console.log(`[CRUNCHFLIX] Using DeepSeek result: "${deepseekResult.title}"`);
-        return deepseekResult;
+    // 1. Try DeepSeek API (cloud, primary) - Netflix ONLY
+    if (platform === 'netflix') {
+        const deepseekResult = await parseTitleWithDeepSeek(rawTitle);
+        if (deepseekResult) {
+            console.log(`[CRUNCHFLIX] Using DeepSeek result: "${deepseekResult.title}"`);
+            return deepseekResult;
+        }
     }
 
     // 2. Try Chrome AI (local, on-device Gemini Nano)
@@ -1035,10 +1151,14 @@ async function parseTitle(rawTitle, platform = 'netflix') {
 function parseTitleRegex(rawTitle, platform = 'netflix') {
     if (!rawTitle) return null;
 
-    // Crunchyroll handles explicit patterns from content.js or its og:title metadata
-    if (platform === 'crunchyroll') {
+    // Crunchyroll / Hotstar handle explicit patterns from content.js or og:title metadata
+    if (platform === 'crunchyroll' || platform === 'hotstar') {
         const crPatterns = [
+            /^(.+?),\s+Season\s+(\d+),\s+Episode\s+(\d+)/i, // Hotstar ARIA "Show, Season 1, Episode 2"
             /^(.+?)\s+Season\s+(\d+)\s*-\s*Episode\s+(\d+)/i, // Enhanced "Show Season X - Episode Y"
+            /^(.+?)\s+S(\d+)\s+Episode\s+(\d+)/i,            // "Show S1 Episode 2"
+            /^(.+?)\s+S(\d+)\s+E(\d+)/i,                    // "Show S1 E2"
+            /^(.+?)\s*[|\-]\s*S(\d+)\s*E(\d+)/i,             // "Show | S1 E2"
             /^(.+?)\s*-\s*Episode\s+(\d+)/i,                 // Fallback "Show - Episode X"
             /^(.+?)\s*\|\s*E(\d+)/i,                          // Native og:title "Show | EXX"
             /^(.+?)\s*\|\s*Episode\s+(\d+)/i                  // Alternative "Show | Episode X"
@@ -1117,24 +1237,37 @@ function validateMatch(query, result, expectedYear) {
     const q = normalize(query);
     const r = normalize(entity.title);
 
+    // 1. Year Check (High Confidence)
     if (expectedYear) {
         const resultYear = parseInt(entity.year);
         if (Math.abs(resultYear - parseInt(expectedYear)) > 1) {
             console.log(`[CRUNCHFLIX] Rejected match: "${entity.title}" (Year mismatch: ${resultYear} vs ${expectedYear})`);
             return false;
         }
-        console.log(`[CRUNCHFLIX] Accepted match based on Year: "${entity.title}" (${resultYear})`);
-        return true;
     }
 
+    // 2. Exact Match (Highest Confidence)
     if (q === r) return true;
 
-    if (q.length > r.length + 5 && q.startsWith(r)) {
-        console.log(`[CRUNCHFLIX] Rejected match: "${entity.title}" (too short for "${query}")`);
+    // 3. Substring Logic (Handling suffixes/prefixes)
+    if (r.includes(q)) {
+        const diff = r.length - q.length;
+        // If it's a small difference (like a year suffix "(1999)" or "UK"), allow it
+        if (diff <= 6) return true; 
+
+        // If it's a large difference (like "Wise Guy: David Chase and The Sopranos"), reject
+        console.log(`[CRUNCHFLIX] Rejected fuzzy match: "${entity.title}" (Title baggage/documentary detected for "${query}")`);
         return false;
     }
 
-    return true;
+    // 4. Prefix match (query: "The Sopranos Season 1", result: "The Sopranos")
+    if (q.startsWith(r)) {
+        const diff = q.length - r.length;
+        // Allow common suffixes in the query like "Season 1", "Episode 1"
+        if (diff < 15) return true; 
+    }
+
+    return false;
 }
 
 async function searchTmdbAndResolve(query, type, token) {
@@ -1214,171 +1347,75 @@ async function searchTrakt(query, type, token, year = null) {
     let bestResult = null;
 
     // 1. Try metadata-based clean title
-    const searchPart = sanitizeShowTitle(query);
-    console.log(`[CRUNCHFLIX] Bridging to Trakt Search: "${searchPart}" (${searchType})`);
-    let results = await doSearchRaw(searchPart, token, searchType, year);
-
-    if (results && results.length > 0) {
-        for (const result of results) {
-            const isValid = validateMatch(searchPart, result, year);
-            console.log(`[CRUNCHFLIX] Validating match for "${result.show?.title || result.movie?.title}": ${isValid ? 'PASS' : 'FAIL'}`);
-            if (isValid) return result;
-        }
-        bestResult = results[0];
-    }
-
-    // 2. Fallback: Try a cleaner version (alphanumeric only)
-    const cleaned = searchPart.replace(/[^\w\s]/gi, ' ').replace(/\s+/g, ' ').trim();
-    if (cleaned !== searchPart) {
-        console.log(`[CRUNCHFLIX] Retry search with cleaned query: "${cleaned}"`);
-        results = await doSearchRaw(cleaned, token, searchType, year);
-        if (results && results.length > 0) {
-            for (const result of results) {
-                // Pass the searchPart (clean string) to validateMatch instead of the raw long query
-                if (validateMatch(cleaned, result, year)) return result;
-            }
-            if (!bestResult) bestResult = results[0];
-        }
-    }
-
-    // 3. Last Ditch: TMDB Fallback if configured
-    const tmdbResult = await searchTmdbAndResolve(query, type, token);
-    if (tmdbResult) return tmdbResult;
-
-    return bestResult;
-}
-
-async function getTmdbImageById(tmdbId, type) {
-    if (!tmdbId) return null;
-    const storage = await chrome.storage.local.get(['tmdb_api_key']);
-    const tmdbKey = storage.tmdb_api_key;
-    if (!tmdbKey) return null;
-
-    const searchType = type === 'episode' ? 'tv' : 'movie';
-    const url = `https://api.themoviedb.org/3/${searchType}/${tmdbId}?api_key=${tmdbKey}`;
+async function sendScrobble(action, payload, token) {
+    const url = getSimklUrl(`/scrobble/${action}`);
     try {
-        const res = await fetch(url);
-        const data = await res.json();
-        if (data.poster_path) {
-            return `https://image.tmdb.org/t/p/w500${data.poster_path}`;
-        }
-    } catch (e) {
-        console.error("TMDB ID lookup failed", e);
-    }
-    return null;
-}
-
-async function getTmdbImage(query, type) {
-    const storage = await chrome.storage.local.get(['tmdb_api_key']);
-    const tmdbKey = storage.tmdb_api_key;
-    if (!tmdbKey) return null;
-
-    const searchType = type === 'episode' ? 'tv' : 'movie';
-    const url = `https://api.themoviedb.org/3/search/${searchType}?api_key=${tmdbKey}&query=${encodeURIComponent(query)}`;
-
-    try {
-        const res = await fetch(url);
-        const data = await res.json();
-        if (data.results && data.results.length > 0) {
-            const posterPath = data.results[0].poster_path;
-            if (posterPath) {
-                return `https://image.tmdb.org/t/p/w500${posterPath}`;
-            }
-        }
-    } catch (e) {
-        console.error("TMDB search failed", e);
-    }
-    return null;
-}
-
-async function sendScrobble(action, payload, token, clientId) {
-    const url = `${API_URL}/scrobble/${action}`;
-    try {
-        if (!clientId) throw new Error("Client ID missing for scrobble");
-        console.log(`[CRUNCHFLIX] Sending ${action.toUpperCase()} to Trakt...`, payload);
-        let res = await fetch(url, {
+        console.log(`[CRUNCHFLIX] Sending ${action.toUpperCase()} to Simkl...`, payload);
+        const res = await fetch(url, {
             method: 'POST',
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json',
-                'trakt-api-version': '2',
-                'trakt-api-key': clientId,
-                'Authorization': `Bearer ${token}`
-            },
+            headers: getSimklHeaders(token),
             body: JSON.stringify(payload)
         });
 
-        // Auto-refresh on 401
-        if (res.status === 401) {
-            console.warn('[CRUNCHFLIX] Token expired (401). Attempting auto-refresh...');
-            const newToken = await refreshTraktToken();
-            if (newToken) {
-                // Retry with fresh token
-                res = await fetch(url, {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'trakt-api-version': '2',
-                        'trakt-api-key': clientId,
-                        'Authorization': `Bearer ${newToken}`
-                    },
-                    body: JSON.stringify(payload)
-                });
-            }
-        }
-
         if (!res.ok) {
             const errText = await res.text();
-            console.error(`[CRUNCHFLIX] Trakt ${action} failed (${res.status}):`, errText);
+            console.error(`[CRUNCHFLIX] Simkl ${action} failed (${res.status}):`, errText);
         } else {
             const json = await res.json();
-            console.log(`[CRUNCHFLIX] Trakt ${action} success:`, json);
+            console.log(`[CRUNCHFLIX] Simkl ${action} success:`, json);
         }
     } catch (e) {
         console.error(`[CRUNCHFLIX] Scrobble ${action} exception:`, e);
     }
 }
 
-// ── Auto Token Refresh ──
-async function refreshTraktToken() {
+async function doSearchRaw(q, token, type = 'tv', year = null) {
+    const simklType = type === 'show' || type === 'episode' ? 'tv' : type;
+    let url = getSimklUrl(`/search/text?q=${encodeURIComponent(q)}&type=${simklType}`);
+    if (year) url += `&year=${year}`;
+
     try {
-        const storage = await chrome.storage.local.get(['trakt_token', 'client_id', 'client_secret']);
-        const tokenData = storage.trakt_token;
-        if (!tokenData?.refresh_token || !storage.client_id || !storage.client_secret) {
-            console.error('[CRUNCHFLIX] Cannot refresh: missing refresh_token or API keys');
-            return null;
-        }
-
-        console.log('[CRUNCHFLIX] Refreshing Trakt token...');
-        const res = await fetch(`${API_URL}/oauth/token`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                refresh_token: tokenData.refresh_token,
-                client_id: storage.client_id,
-                client_secret: storage.client_secret,
-                redirect_uri: 'urn:ietf:wg:oauth:2.0:oob',
-                grant_type: 'refresh_token'
-            })
+        const res = await fetch(url, {
+            headers: getSimklHeaders(token)
         });
-
-        if (!res.ok) {
-            console.error(`[CRUNCHFLIX] Token refresh failed (${res.status})`);
-            // Clear broken token so user sees the reconnect screen
-            chrome.storage.local.remove(['trakt_token']);
-            return null;
-        }
-
-        const newTokenData = await res.json();
-        await chrome.storage.local.set({ trakt_token: newTokenData });
-        console.log('[CRUNCHFLIX] Token refreshed successfully!');
-        return newTokenData.access_token;
-
+        if (!res.ok) return [];
+        return await res.json();
     } catch (e) {
-        console.error('[CRUNCHFLIX] Token refresh exception:', e);
-        return null;
+        console.error("[CRUNCHFLIX] Simkl Search failed:", e);
+        return [];
     }
+}
+
+async function searchSimkl(query, type, token, year = null) {
+    const searchType = type === 'episode' ? 'tv' : 'movie';
+    let bestResult = null;
+
+    const searchPart = sanitizeShowTitle(query);
+    console.log(`[CRUNCHFLIX] Searching Simkl: "${searchPart}" (${searchType})`);
+    let results = await doSearchRaw(searchPart, token, searchType, year);
+
+    if (results && results.length > 0) {
+        for (const result of results) {
+            const isValid = validateMatch(searchPart, { show: result, movie: result }, year);
+            if (isValid) return { show: result, movie: result, ...result };
+        }
+        bestResult = { show: results[0], movie: results[0], ...results[0] };
+    }
+
+    const cleaned = searchPart.replace(/[^\w\s]/gi, ' ').replace(/\s+/g, ' ').trim();
+    if (cleaned !== searchPart) {
+        results = await doSearchRaw(cleaned, token, searchType, year);
+        if (results && results.length > 0) {
+            for (const result of results) {
+                if (validateMatch(cleaned, { show: result, movie: result }, year)) {
+                    return { show: result, movie: result, ...result };
+                }
+            }
+            if (!bestResult) bestResult = { show: results[0], movie: results[0], ...results[0] };
+        }
+    }
+
+    return bestResult;
 }
 /**
  * Proactive Recovery: Fetches/Scrapes Netflix auth tokens using UTS methodology.
@@ -1660,207 +1697,102 @@ async function bulkCheckTrakt(items, sendResponse) {
     try {
         const storage = await chrome.storage.local.get(['trakt_token', 'client_id']);
         const token = storage.trakt_token?.access_token;
-        const clientId = storage.client_id;
-        if (!token || !clientId) throw new Error("Trakt not connected.");
+async function bulkCheckSimkl(items, sendResponse) {
+    try {
+        const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token']);
+        const token = storage.simkl_token?.access_token || storage.trakt_token?.access_token;
+        if (!token) throw new Error("Simkl not connected.");
 
-        // We'll check the last 200 items in Trakt history to find matches
-        // Optimization: For a real bulk check, we'd fetch Trakt history once and compare locally
-        const url = `${API_URL}/sync/history?limit=200`;
+        const url = getSimklUrl('/sync/activities');
         const res = await fetch(url, {
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json',
-                'trakt-api-version': '2',
-                'trakt-api-key': clientId,
-                'Authorization': `Bearer ${token}`
-            }
+            headers: getSimklHeaders(token)
         });
 
-        if (!res.ok) throw new Error("Could not fetch Trakt history.");
-        const traktHistory = await res.json();
+        if (!res.ok) throw new Error("Could not fetch Simkl activities.");
+        const activities = await res.json();
 
-        // Simple matching logic: Check if title exists in history
-        // In a more robust version, we'd match IDs, but Netflix IDs != Trakt IDs directly
-        const syncedItems = items.map(item => {
-            const displayTitle = item.seriesTitle ? `${item.seriesTitle}: ${item.videoTitle}` : item.videoTitle;
-            const isSynced = traktHistory.some(th => {
-                const traktTitle = th.show ? th.show.title : th.movie?.title;
-                // Basic fuzzy title match for the dry run
-                return traktTitle && displayTitle.toLowerCase().includes(traktTitle.toLowerCase());
-            });
-            return { ...item, isSynced };
-        });
-
-        sendResponse({ success: true, items: syncedItems });
+        const syncedItems = (items || []).map(item => ({ ...item, isSynced: false }));
+        sendResponse({ success: true, items: syncedItems, activities });
     } catch (e) {
         console.error("[CRUNCHFLIX] Bulk check error:", e);
         sendResponse({ success: false, error: e.message });
     }
 }
 
-async function bulkSyncToTrakt(items, sendResponse) {
+async function bulkSyncToSimkl(items, sendResponse) {
     try {
-        const storage = await chrome.storage.local.get(['trakt_token', 'client_id', 'history_overrides']);
-        const token = storage.trakt_token?.access_token;
-        const clientId = storage.client_id;
-        const overrides = storage.history_overrides || {};
+        const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token']);
+        const token = storage.simkl_token?.access_token || storage.trakt_token?.access_token;
+        if (!token) throw new Error("Simkl not connected.");
 
-        if (!token || !clientId) throw new Error("Trakt not connected.");
-
-        const episodesToSync = [];
+        const showsToSync = [];
         const moviesToSync = [];
         let completed = 0;
-        const total = items.length;
+        const total = (items || []).length;
 
         for (const item of items) {
-            let match = null;
             const isEpisode = !!item.seriesTitle;
+            const watchedAt = new Date(item.watchedDate).toISOString();
 
-            // STRATEGY 0: MANUAL OVERRIDE
-            if (overrides[item.movieID]) {
-                const ov = overrides[item.movieID];
-                match = ov.traktItem || null;
-                if (match) {
-                    if (ov.season) item.seasonNumber = ov.season;
-                    if (ov.episode) item.episodeNumber = ov.episode;
-                }
-            }
-
-            // STRATEGY 1: ID-BASED
-            if (!match) {
-                try {
-                    const idType = isEpisode ? 'show' : 'movie';
-                    const res = await fetch(`${API_URL}/search/netflix/${item.movieID}?type=${idType}`, {
-                        headers: {
-                            'trakt-api-version': '2',
-                            'trakt-api-key': clientId,
-                            'Authorization': `Bearer ${token}`
+            if (isEpisode) {
+                showsToSync.push({
+                    title: item.seriesTitle,
+                    ids: { netflix: item.movieID },
+                    episodes: [
+                        {
+                            season: item.seasonNumber || 1,
+                            number: item.episodeNumber || 1,
+                            watched_at: watchedAt
                         }
-                    });
-                    const results = res.ok ? await res.json() : [];
-                    match = results[0];
-                } catch (e) {
-                    console.warn(`[CRUNCHFLIX] ID Search failed for ${item.movieID}`, e);
-                }
-            }
-
-            // STRATEGY 2: TITLE-BASED
-            if (!match) {
-                try {
-                    const query = isEpisode ? item.seriesTitle : item.videoTitle;
-                    const type = isEpisode ? 'show' : 'movie';
-                    const res = await fetch(`${API_URL}/search/${type}?query=${encodeURIComponent(query)}`, {
-                        headers: {
-                            'trakt-api-version': '2',
-                            'trakt-api-key': clientId,
-                            'Authorization': `Bearer ${token}`
-                        }
-                    });
-                    const results = res.ok ? await res.json() : [];
-
-                    if (results.length > 0) {
-                        const top = results[0];
-                        if (isEpisode) {
-                            const epRes = await fetch(`${API_URL}/shows/${top.show.ids.trakt}/seasons/${item.seasonNumber || 1}/episodes/${item.episodeNumber || 1}`, {
-                                headers: {
-                                    'trakt-api-version': '2',
-                                    'trakt-api-key': clientId,
-                                    'Authorization': `Bearer ${token}`
-                                }
-                            });
-                            if (epRes.ok) {
-                                match = {
-                                    type: 'show',
-                                    show: top.show,
-                                    episode: await epRes.json()
-                                };
-                            }
-                        } else {
-                            match = top;
-                        }
-                    }
-                } catch (e) {
-                    console.warn(`[CRUNCHFLIX] Title search failed for ${item.videoTitle}`, e);
-                }
-            }
-
-            if (match) {
-                const watchedAt = new Date(item.watchedDate).toISOString();
-                if (match.type === 'show' || match.show) {
-                    const epIds = match.episode?.ids || match.show.ids;
-                    episodesToSync.push({
-                        watched_at: watchedAt,
-                        ids: epIds,
-                        season: match.episode ? match.episode.season : (item.seasonNumber || 1),
-                        number: match.episode ? match.episode.number : (item.episodeNumber || 1)
-                    });
-                } else if (match.type === 'movie' || match.movie) {
-                    moviesToSync.push({
-                        watched_at: watchedAt,
-                        ids: match.movie.ids
-                    });
-                }
+                    ]
+                });
+            } else {
+                moviesToSync.push({
+                    title: item.videoTitle,
+                    ids: { netflix: item.movieID },
+                    watched_at: watchedAt
+                });
             }
 
             completed++;
             const progress = Math.round((completed / total) * 100);
             chrome.runtime.sendMessage({ action: "syncProgress", progress }).catch(() => { });
-            await new Promise(r => setTimeout(r, 100));
+            await new Promise(r => setTimeout(r, 20));
         }
 
-        if (episodesToSync.length === 0 && moviesToSync.length === 0) {
-            throw new Error("No items could be matched on Trakt.");
-        }
+        const syncPayload = {};
+        if (showsToSync.length > 0) syncPayload.shows = showsToSync;
+        if (moviesToSync.length > 0) syncPayload.movies = moviesToSync;
 
-        const res = await fetch(`${API_URL}/sync/history`, {
+        const res = await fetch(getSimklUrl('/sync/history'), {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'trakt-api-version': '2',
-                'trakt-api-key': clientId,
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-                movies: moviesToSync,
-                episodes: episodesToSync
-            })
+            headers: getSimklHeaders(token),
+            body: JSON.stringify(syncPayload)
         });
 
-        if (!res.ok) throw new Error(`Trakt Sync failed: ${await res.text()}`);
+        if (!res.ok) throw new Error(`Simkl Sync failed: ${await res.text()}`);
 
         const result = await res.json();
-        sendResponse({ success: true, added: result.added });
+        sendResponse({ success: true, added: result.added || result });
     } catch (e) {
         console.error("[CRUNCHFLIX] Bulk sync error:", e);
         sendResponse({ success: false, error: e.message });
     }
 }
 
-async function resolveTraktUrl(url, sendResponse) {
+async function resolveSimklUrl(url, sendResponse) {
     try {
-        const storage = await chrome.storage.local.get(['trakt_token', 'client_id']);
-        const token = storage.trakt_token?.access_token;
-        const clientId = storage.client_id;
-        if (!token || !clientId) throw new Error("Trakt not connected.");
+        const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token']);
+        const token = storage.simkl_token?.access_token || storage.trakt_token?.access_token;
+        if (!token) throw new Error("Simkl not connected.");
 
-        const showMatch = url.match(/shows\/([^/]+)/);
+        const showMatch = url.match(/shows\/([^/]+)/) || url.match(/tv\/([^/]+)/);
         const movieMatch = url.match(/movies\/([^/]+)/);
         const slug = (showMatch || movieMatch)?.[1];
-        if (!slug) throw new Error("Invalid Trakt URL.");
+        if (!slug) throw new Error("Invalid URL.");
 
-        const type = showMatch ? 'show' : 'movie';
-        // Use precision ID search for slugs extracted from URLs
-        const searchUrl = `${API_URL}/search/trakt/${slug}?type=${type}&extended=full`;
-        const res = await fetch(searchUrl, {
-            headers: {
-                'trakt-api-version': '2',
-                'trakt-api-key': clientId,
-                'Authorization': `Bearer ${token}`
-            }
-        });
-
-        if (!res.ok) throw new Error(`Trakt API: ${res.status}`);
-        const results = await res.json();
+        const type = showMatch ? 'tv' : 'movie';
+        const results = await doSearchRaw(slug, token, type);
         sendResponse({ success: true, results });
     } catch (e) {
         console.error("[CRUNCHFLIX] URL Resolution error:", e);
@@ -1868,30 +1800,11 @@ async function resolveTraktUrl(url, sendResponse) {
     }
 }
 
-async function handleTraktSearch(query, type, sendResponse) {
+async function handleSimklSearch(query, type, sendResponse) {
     try {
-        const storage = await chrome.storage.local.get(['trakt_token', 'client_id']);
-        const token = storage.trakt_token?.access_token;
-        const clientId = storage.client_id;
-        if (!token || !clientId) throw new Error("Trakt not connected.");
-
-        // If it looks like a slug/ID, try precision search first
-        if (/^[a-z0-9-]+$/.test(query) && !query.includes(' ')) {
-            const precisionRes = await fetch(`${API_URL}/search/trakt/${query}?type=${type}&extended=full`, {
-                headers: {
-                    'trakt-api-version': '2',
-                    'trakt-api-key': clientId,
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            if (precisionRes.ok) {
-                const results = await precisionRes.json();
-                if (results.length > 0) {
-                    sendResponse({ success: true, results });
-                    return;
-                }
-            }
-        }
+        const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token']);
+        const token = storage.simkl_token?.access_token || storage.trakt_token?.access_token;
+        if (!token) throw new Error("Simkl not connected.");
 
         const results = await doSearchRaw(query, token, type);
         sendResponse({ success: true, results });

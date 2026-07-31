@@ -18,8 +18,8 @@
     <!-- Auth Flow: Not Connected -->
     <div id="auth-section" class="hidden auth-wrapper glass-panel">
         <h2 class="auth-title">CRUNCHFLIX</h2>
-        <p class="auth-subtitle">Sync your watch history to Trakt</p>
-        <button id="authBtn" class="btn-primary">Connect to Trakt</button>
+        <p class="auth-subtitle">Sync your watch history to Simkl</p>
+        <button id="authBtn" class="btn-primary">Connect to Simkl</button>
         <button id="settingsBtnAuth" class="btn-secondary mt-sm">API Settings</button>
     </div>
 
@@ -27,7 +27,7 @@
     <div id="code-section" class="hidden auth-wrapper glass-panel">
         <h2 class="auth-title">AUTHORize</h2>
         <div id="trakt-code-display" class="trakt-code">----</div>
-        <p class="auth-subtitle">Go to <b>trakt.tv/activate</b><br>and enter the code above.</p>
+        <p class="auth-subtitle">Go to <b>simkl.com/pin</b><br>and enter the code above.</p>
         <button id="checkAuthBtn" class="btn-primary">I've Authorized</button>
     </div>
 
@@ -70,13 +70,13 @@
 
                 <!-- 2. Primary Actions Section (Middle) -->
                 <div class="primary-actions-v2">
-                    <button id="fixMatchBtn" class="btn-ghost-v2 main-action" title="Fix Show">
+                    <button id="fixMatchBtn" class="btn-ghost-v2 main-action" title="Fix Match">
                         <svg class="action-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
                             </path>
                         </svg>
-                        <span class="action-label">Fix Show</span>
+                        <span class="action-label">Fix Match</span>
                     </button>
                     <button id="fixEpisodeBtn" class="btn-ghost-v2 main-action" title="Fix Episode">
                         <svg class="action-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -100,9 +100,9 @@
 
                 <!-- Fix Panels (Hidden by default) -->
                 <div id="fix-section" class="expanded-panel hidden">
-                    <span class="panel-label">Search Trakt</span>
+                    <span class="panel-label">Search Simkl</span>
                     <div class="search-field">
-                        <input type="text" id="fixInput" placeholder="Show title...">
+                        <input type="text" id="fixInput" placeholder="Title...">
                         <button id="fixSearchBtn" class="btn-primary">🔍</button>
                     </div>
                     <div id="fix-status" class="status-info"></div>

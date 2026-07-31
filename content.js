@@ -5,6 +5,22 @@ let lastUrl = window.location.href;
 let videoCheckInterval;
 let heartbeatInterval;
 
+async function remoteLog(message, context = 'CS', level = 'INFO') {
+    try {
+        await fetch('http://localhost:9999/log', {
+            method: 'POST',
+            body: JSON.stringify({ message, context, level }),
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (e) {
+        // Silent fail if logger isn't running
+    }
+}
+window.onerror = (msg, url, line, col, error) => {
+    const info = `Uncaught: ${msg} at ${url}:${line}:${col}`;
+    remoteLog(info, 'WINDOW', 'ERROR');
+};
+
 // ── Site-Specific Parsers ──
 
 function parseNetflixMetadata() {
@@ -29,9 +45,16 @@ function parseNetflixMetadata() {
             const textLines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
 
             let showName = textLines[0] || document.querySelector('h2')?.textContent.trim() || rawText;
-            showName = showName.split(/ Season \d+/i)[0].split(/ S\d+/i)[0].split(/ - Episode/i)[0].split(/ \| E\d+/i)[0].trim();
+            
+            // CONCATENATION PROTECTION: If showName looks like "The MentalistE2" (no space before E2)
+            // Split it before the S/E if it's preceded by characters
+            if (showName.match(/[a-z0-9]E\d+/i) || showName.match(/[a-z0-9]S\d+/i)) {
+                showName = showName.replace(/([a-z0-9])([SE]\d+)/i, '$1 - $2');
+            }
 
-            const textSeMatch = rawText.match(/S(\d+):E(\d+)/i);
+            showName = showName.split(/ Season \d+/i)[0].split(/ S\d+/i)[0].split(/ - Episode/i)[0].split(/ \| E\d+/i)[0].split(/E\d+/i)[0].trim();
+
+            const textSeMatch = rawText.match(/S(\d+):E(\d+)/i) || rawText.match(/S(\d+)[\s:]*E(\d+)/i);
 
             if ((seMatch || textSeMatch) && showName) {
                 const finalS = (seMatch || textSeMatch)[1];
@@ -41,20 +64,36 @@ function parseNetflixMetadata() {
                 return cachedNetflixTitle;
             } else if (textLines.length > 0 && showName) {
                 const epInfo = textLines.find(l => l.match(/E(\d+)/i) || l.match(/Episode\s*\d+/i));
-                const seasonLine = textLines.find(l => l.match(/Season\s*(\d+)/i));
+                const seasonLine = textLines.find(l => l.match(/Season\s*(\d+)/i)) || 
+                                   textLines.find(l => l.match(/S(\d+)/i));
                 let seasonFallback = null;
                 if (seasonLine) {
-                    const sMatch = seasonLine.match(/Season\s*(\d+)/i);
+                    const sMatch = seasonLine.match(/Season\s*(\d+)/i) || seasonLine.match(/S(\d+)/i);
                     seasonFallback = sMatch ? sMatch[1] : null;
                 }
 
+                // DEEP SEARCH: If not in lines, search specific data-uia or generic labels
+                if (!seasonFallback) {
+                    const sEl = document.querySelector('[data-uia="video-title-season"]') || 
+                                document.querySelector('[class*="season-number"]');
+                    if (sEl) {
+                        const sMatch = sEl.textContent.match(/Season\s*(\d+)/i) || sEl.textContent.match(/S(\d+)/i);
+                        seasonFallback = sMatch ? sMatch[1] : null;
+                    }
+                }
+
+                let episodeTitle = null;
                 if (epInfo) {
                     const epMatch = epInfo.match(/E(\d+)/i) || epInfo.match(/Episode\s*(\d+)/i);
-                    console.log(`[CRUNCHFLIX] Scraped Fallback: ${showName} S:${seasonFallback} E:${epMatch[1]}`);
+                    // Extract quoted text or the rest of the line as episodeTitle
+                    const titleMatch = epInfo.match(/"([^"]+)"/) || epInfo.match(/Episode\s*\d+\s*[|\-:]\s*(.+)$/i);
+                    episodeTitle = titleMatch ? titleMatch[1] : null;
+
+                    console.log(`[CRUNCHFLIX] Scraped Fallback: ${showName} S:${seasonFallback} E:${epMatch[1]} Title:${episodeTitle}`);
                     if (seasonFallback) {
-                        cachedNetflixTitle = `${showName} - Season ${seasonFallback} Episode ${epMatch[1]}`;
+                        cachedNetflixTitle = `${showName} - Season ${seasonFallback} Episode ${epMatch[1]}` + (episodeTitle ? ` - ${episodeTitle}` : '');
                     } else {
-                        cachedNetflixTitle = `${showName} - Episode ${epMatch[1]}`;
+                        cachedNetflixTitle = `${showName} - Episode ${epMatch[1]}` + (episodeTitle ? ` - ${episodeTitle}` : '');
                     }
                     return cachedNetflixTitle;
                 }
@@ -113,10 +152,136 @@ function parseCrunchyrollMetadata() {
     return document.title;
 }
 
+function parseHotstarMetadata() {
+    try {
+        // STRATEGY 1: Player UI (Highest accuracy)
+        // Targeted based on user-provided structure: <div aria-label="Show, Season, Episode, Title" role="button">
+        const playerTitleEl = document.querySelector('div[aria-label*="Season"][aria-label*="Episode"][role="button"]');
+        if (playerTitleEl) {
+            const aria = playerTitleEl.getAttribute('aria-label');
+            if (aria) {
+                // Return cleaned version: "Malcolm in the Middle, Season 1, Episode 2"
+                return aria.replace(/,\s*[^,]+$/, '').trim(); // Remove the episode name if it's the 4th item
+            }
+        }
+
+        // STRATEGY 2: JSON-LD structured data
+        const ldScripts = document.querySelectorAll('script[type="application/ld+json"]');
+        for (const script of ldScripts) {
+            try {
+                const json = JSON.parse(script.textContent);
+
+                // TVEpisode type
+                if (json['@type'] === 'TVEpisode' || json.partOfSeries) {
+                    const series = json.partOfSeries?.name || json.name;
+                    const episodeNumber = json.episodeNumber;
+                    const seasonNumber = json.partOfSeason?.seasonNumber;
+
+                    if (series && episodeNumber) {
+                        if (seasonNumber) {
+                            return `${series} Season ${seasonNumber} - Episode ${episodeNumber}`;
+                        }
+                        return `${series} - Episode ${episodeNumber}`;
+                    }
+                }
+
+                // Movie type
+                if (json['@type'] === 'Movie' && json.name) {
+                    return json.name;
+                }
+            } catch (e) { }
+        }
+
+        // STRATEGY 2: og:title meta tag
+        const ogTitle = document.querySelector('meta[property="og:title"]')?.content;
+        if (ogTitle) {
+            let cleaned = ogTitle
+                .replace(/^Watch\s+/i, '')
+                .replace(/\s*[|\-]\s*(?:Jio\s*)?Hotstar\s*$/i, '')
+                .replace(/\s*[|\-]\s*Disney\+?\s*Hotstar\s*$/i, '')
+                .replace(/\s+on\s+(?:Jio\s*)?Hotstar\s*$/i, '')
+                .replace(/\s+on\s+Disney\+?\s*Hotstar\s*$/i, '')
+                .trim();
+            if (cleaned) return cleaned;
+        }
+
+        // STRATEGY 3: Document title
+        let docTitle = document.title;
+        docTitle = docTitle
+            .replace(/^Watch\s+/i, '')
+            .replace(/\s*[|\-]\s*(?:Jio\s*)?Hotstar\s*$/i, '')
+            .replace(/\s*[|\-]\s*Disney\+?\s*Hotstar\s*$/i, '')
+            .replace(/\s+on\s+(?:Jio\s*)?Hotstar\s*$/i, '')
+            .replace(/\s+on\s+Disney\+?\s*Hotstar\s*$/i, '')
+            .trim();
+
+        const GENERIC_HS = ["JioHotstar", "Jio Hotstar", "Hotstar", "Disney+ Hotstar", ""];
+        if (GENERIC_HS.some(g => docTitle.toLowerCase() === g.toLowerCase())) return null;
+        return docTitle;
+    } catch (e) {
+        console.error("[CRUNCHFLIX] Error scraping Hotstar DOM:", e);
+    }
+    return null;
+}
+
+function querySelectorShadow(selector, root = document) {
+    const el = root.querySelector(selector);
+    if (el) return el;
+    try {
+        const all = root.querySelectorAll('*');
+        for (const item of all) {
+            if (item.shadowRoot) {
+                const found = querySelectorShadow(selector, item.shadowRoot);
+                if (found) return found;
+            }
+        }
+    } catch (e) { }
+    return null;
+}
+
+function parsePrimeVideoMetadata() {
+    try {
+        const titleElement = querySelectorShadow('.atvwebplayersdk-title-text');
+        const subtitleElement = querySelectorShadow('.atvwebplayersdk-subtitle-text');
+
+        if (titleElement) {
+            const titleText = titleElement.textContent?.trim() || '';
+            const subtitleText = subtitleElement?.textContent?.trim() || '';
+
+            if (titleText) {
+                const episodeMatch = subtitleText.match(
+                    /Season\s+(?<season>\d+),?\s*Ep\.?\s*(?<episode>\d+)\s*(?<episodeTitle>.*)/i
+                );
+                if (episodeMatch?.groups) {
+                    const season = episodeMatch.groups.season;
+                    const episode = episodeMatch.groups.episode;
+                    const epTitle = episodeMatch.groups.episodeTitle?.trim() || '';
+                    console.log(`[CRUNCHFLIX] Prime Video matched: ${titleText} S${season}:E${episode}` + (epTitle ? ` (${epTitle})` : ''));
+                    return `${titleText} - Season ${season} Episode ${episode}` + (epTitle ? ` - ${epTitle}` : '');
+                }
+                return titleText;
+            }
+        }
+    } catch (e) {
+        console.error("[CRUNCHFLIX] Error scraping Prime Video DOM:", e);
+    }
+    const GENERIC_AMZN = ["amazon", "prime video", "primevideo", ""];
+    if (GENERIC_AMZN.some(g => document.title.trim().toLowerCase().includes(g) && document.title.trim().length <= g.length + 2)) return null;
+
+    const finalTitle = document.title || '';
+    // Block show page titles (e.g. "Prime Video: Dexter: Resurrection, Season 1")
+    if (finalTitle.toLowerCase().includes("season") && !finalTitle.toLowerCase().includes("episode") && !finalTitle.toLowerCase().includes("ep.") && !finalTitle.toLowerCase().includes("ep ")) {
+        return null;
+    }
+    return finalTitle;
+}
+
 function extractTitle() {
     const domain = window.location.hostname;
     if (domain.includes("netflix.com")) return parseNetflixMetadata();
     if (domain.includes("crunchyroll.com")) return parseCrunchyrollMetadata();
+    if (domain.includes("hotstar.com") || domain.includes("jiohotstar.com")) return parseHotstarMetadata();
+    if (domain.includes("primevideo.com") || domain.includes("amazon.com") || domain.includes("amazon.co.uk") || domain.includes("amazon.co.jp") || domain.includes("amazon.de") || domain.includes("amazon.com.au")) return parsePrimeVideoMetadata();
     return document.title;
 }
 
@@ -124,12 +289,23 @@ function extractTitle() {
 
 let port = null;
 
+// Background message listener for on-demand metadata or UI actions
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === "getMetadata") {
+        sendResponse({ title: extractTitle() });
+    } else if (message.action === "showToast") {
+        showToast(message.payload?.message || message.message);
+    }
+});
+
 function connectToBackground() {
     // Check if context is already invalidated
     if (chrome.runtime?.id === undefined) {
         if (!isInvalidated) {
             console.error("[CRUNCHFLIX] Extension context invalidated. Monitoring stopped.");
             isInvalidated = true;
+            stopAllIntervals();
+            showRefreshToast();
         }
         return;
     }
@@ -157,18 +333,18 @@ function connectToBackground() {
 
 function sendToPort(action, payload) {
     if (isInvalidated) return;
-
-    if (!port) {
-        connectToBackground();
-        if (!port) return;
-    }
-
     try {
-        port.postMessage({ action, payload });
+        if (port) {
+            port.postMessage({ action, payload });
+        }
     } catch (e) {
         console.error("[CRUNCHFLIX] Error sending to port:", e);
-        if (e.message.includes("context invalidated")) {
+        if (e.message.includes("Extension context invalidated")) {
             isInvalidated = true;
+            showRefreshToast();
+            remoteLog("Extension context invalidated in sendToPort", "PORT", "WARN");
+        } else {
+            remoteLog(`Port error: ${e.message}`, "PORT", "ERROR");
         }
     }
 }
@@ -238,6 +414,26 @@ function initCrunchyroll() {
     }, 3000);
 }
 
+function initHotstar() {
+    if (!IS_TOP_FRAME) return;
+    console.log("[CRUNCHFLIX] Initializing Jio Hotstar Parser...");
+
+    setInterval(() => {
+        const topTitle = extractTitle();
+        if (topTitle) {
+            const frames = document.querySelectorAll('iframe');
+            frames.forEach(frame => {
+                try {
+                    frame.contentWindow.postMessage({
+                        type: "CRUNCHFLIX_TITLE_BROADCAST",
+                        title: topTitle
+                    }, "*");
+                } catch (e) { }
+            });
+        }
+    }, 3000);
+}
+
 // ── Core Systems (Toast, Scrobble, Monitoring) ──
 
 function showToast(message) {
@@ -263,13 +459,49 @@ function showToast(message) {
     }, 4000);
 }
 
+function showRefreshToast() {
+    try {
+        const toast = document.createElement('div');
+        toast.textContent = "CRUNCHFLIX: Extension updated. Please refresh the page to continue scrobbling.";
+        Object.assign(toast.style, {
+            position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)',
+            backgroundColor: '#e50914', color: '#fff', padding: '10px 20px', borderRadius: '4px',
+            zIndex: '999999', fontFamily: 'sans-serif', fontWeight: 'bold', boxShadow: '0 2px 10px rgba(0,0,0,0.5)'
+        });
+        document.body.appendChild(toast);
+    } catch (e) { }
+}
+
+function stopAllIntervals() {
+    if (videoCheckInterval) clearInterval(videoCheckInterval);
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
+}
+
 function sendScrobbleMessage(video, status) {
     if (isInvalidated) return;
+
+    // Filter out disconnected or hidden/inactive video elements
+    if (!video.isConnected) return;
+    try {
+        const rect = video.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+    } catch (e) { }
+
+    // Filter out trailers, previews, and ads (less than 5 mins)
+    if (video.duration && video.duration < 300) {
+        return;
+    }
 
     const progress = video.duration ? Math.round((video.currentTime / video.duration) * 100) : 0;
 
     // If we're inside an iframe, prefer the broadcasted title from the top window
     let title = (!IS_TOP_FRAME && globalIframeTitle) ? globalIframeTitle : extractTitle();
+
+    // IFRAME POLLUTION PROTECTION: 
+    // If we are an iframe and have no title (generic), skip sending to avoid overwriting top-frame state
+    if (!IS_TOP_FRAME && !globalIframeTitle && (!title || title.toLowerCase().includes('netflix') || title.toLowerCase().includes('hotstar') || title.toLowerCase().includes('amazon') || title.toLowerCase().includes('prime'))) {
+        return;
+    }
 
     if (window.location.href !== lastUrl) {
         lastUrl = window.location.href;
@@ -281,14 +513,38 @@ function sendScrobbleMessage(video, status) {
 
     console.log(`[CRUNCHFLIX] Sending: status=${status}, title="${title || '(iframe, needs metadata)'}", progress=${progress}%`);
 
-    const platform = window.location.hostname.includes('netflix') ? 'netflix' : 'crunchyroll';
+    const hostname = window.location.hostname;
+    let platform = 'netflix';
+    if (hostname.includes('crunchyroll')) platform = 'crunchyroll';
+    else if (hostname.includes('hotstar') || hostname.includes('jiohotstar')) platform = 'hotstar';
+    else if (hostname.includes('primevideo') || hostname.includes('amazon')) platform = 'amazon-prime';
+
     sendToPort("scrobble", { status, title, progress, platform, fromIframe: !IS_TOP_FRAME });
 }
 
 function sendLiveProgressUpdate(video) {
     if (isInvalidated || video.paused || video.ended) return;
+
+    // Filter out disconnected or hidden/inactive video elements
+    if (!video.isConnected) return;
+    try {
+        const rect = video.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+    } catch (e) { }
+
+    // Filter out trailers, previews, and ads (less than 5 mins)
+    if (video.duration && video.duration < 300) {
+        return;
+    }
+
     const progress = video.duration ? Math.round((video.currentTime / video.duration) * 100) : 0;
-    const platform = window.location.hostname.includes('netflix') ? 'netflix' : 'crunchyroll';
+
+    const hostname = window.location.hostname;
+    let platform = 'netflix';
+    if (hostname.includes('crunchyroll')) platform = 'crunchyroll';
+    else if (hostname.includes('hotstar') || hostname.includes('jiohotstar')) platform = 'hotstar';
+    else if (hostname.includes('primevideo') || hostname.includes('amazon')) platform = 'amazon-prime';
+
     sendToPort("progress_update", { progress, platform, status: 'playing' });
 }
 
@@ -297,14 +553,25 @@ function monitorVideo(video) {
     video.setAttribute('data-ghost-monitored', 'true');
     console.log("[CRUNCHFLIX] Monitoring video element" + (IS_TOP_FRAME ? " (top frame)" : " (iframe)"));
 
+    if (window.location.hostname.includes('primevideo.com') || window.location.hostname.includes('amazon')) {
+        showToast("CRUNCHFLIX: Video playback detected!");
+    }
+
     video.addEventListener('play', () => sendScrobbleMessage(video, 'playing'));
     video.addEventListener('pause', () => sendScrobbleMessage(video, 'paused'));
     video.addEventListener('ended', () => sendScrobbleMessage(video, 'stopped'));
 
+    // Listen for metadata loading so we can start scrobbling as soon as duration is available
+    video.addEventListener('loadedmetadata', () => {
+        if (!video.paused && !video.ended) {
+            sendScrobbleMessage(video, 'playing');
+        }
+    });
+
     if (!video.paused && !video.ended) sendScrobbleMessage(video, 'playing');
 
-    if (heartbeatInterval) clearInterval(heartbeatInterval);
-    heartbeatInterval = setInterval(() => {
+    if (video._ghostHeartbeat) clearInterval(video._ghostHeartbeat);
+    video._ghostHeartbeat = setInterval(() => {
         if (!video.paused && !video.ended) {
             const progress = video.duration ? (video.currentTime / video.duration) * 100 : 0;
             if (progress >= 85) {
@@ -316,7 +583,8 @@ function monitorVideo(video) {
     }, 10000);
 
     // Live UI updates (every second)
-    const liveProgressInterval = setInterval(() => {
+    if (video._ghostLiveProgress) clearInterval(video._ghostLiveProgress);
+    video._ghostLiveProgress = setInterval(() => {
         sendLiveProgressUpdate(video);
     }, 1000);
 
@@ -329,14 +597,60 @@ function monitorVideo(video) {
 }
 
 function checkForVideo() {
-    const videos = document.getElementsByTagName('video');
-    if (videos.length > 0) monitorVideo(videos[0]);
+    // 1. Search in main DOM
+    const videos = Array.from(document.getElementsByTagName('video'));
+
+    // 2. Search inside Shadow DOMs (recursively)
+    function findVideoInShadow(root) {
+        const shadowVideos = Array.from(root.querySelectorAll('video'));
+        if (shadowVideos.length > 0) videos.push(...shadowVideos);
+
+        const allElements = root.querySelectorAll('*');
+        for (const el of allElements) {
+            if (el.shadowRoot) findVideoInShadow(el.shadowRoot);
+        }
+    }
+
+    // Start shadow search from common containers
+    const all = document.querySelectorAll('*');
+    for (const el of all) {
+        if (el.shadowRoot) findVideoInShadow(el.shadowRoot);
+    }
+
+    if (videos.length > 0) {
+        // Monitor all found video elements
+        videos.forEach(v => monitorVideo(v));
+    }
 }
 
 // ── Routing and Entry Point ──
 
+function initPrimeVideo() {
+    if (!IS_TOP_FRAME) return;
+    console.log("[CRUNCHFLIX] Initializing Prime Video Parser...");
+    showToast("CRUNCHFLIX: Initializing Prime Video...");
+
+    // Broadcast the scraped title from top frame down to player iframes
+    setInterval(() => {
+        const topTitle = extractTitle();
+        if (topTitle) {
+            const frames = document.querySelectorAll('iframe');
+            frames.forEach(frame => {
+                try {
+                    frame.contentWindow.postMessage({
+                        type: "CRUNCHFLIX_TITLE_BROADCAST",
+                        title: topTitle
+                    }, "*");
+                } catch (e) { }
+            });
+        }
+    }, 3000);
+}
+
 (function init() {
-    console.log("[CRUNCHFLIX] Content script loaded.");
+    const CS_VERSION = "1.7.4";
+    console.log(`[CRUNCHFLIX] Content script loaded. Version: ${CS_VERSION}`);
+    remoteLog(`Content script loaded on ${window.location.hostname}. Version: ${CS_VERSION}`, "INIT");
     connectToBackground();
 
     const domain = window.location.hostname;
@@ -345,6 +659,10 @@ function checkForVideo() {
         initNetflix();
     } else if (domain.includes("crunchyroll.com")) {
         initCrunchyroll();
+    } else if (domain.includes("hotstar.com") || domain.includes("jiohotstar.com")) {
+        initHotstar();
+    } else if (domain.includes("primevideo.com") || domain.includes("amazon.com") || domain.includes("amazon.co.uk") || domain.includes("amazon.co.jp") || domain.includes("amazon.de") || domain.includes("amazon.com.au")) {
+        initPrimeVideo();
     }
 
     videoCheckInterval = setInterval(checkForVideo, 2000);
