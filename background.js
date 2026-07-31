@@ -1,6 +1,6 @@
 importScripts('config.js');
 
-const VERSION = "2.0.3";
+const VERSION = "2.0.4";
 console.log(`[CRUNCHFLIX] Background script loaded. Version: ${VERSION}`);
 
 async function remoteLog(message, context = 'BG', level = 'INFO') {
@@ -1342,11 +1342,6 @@ async function doSearchRaw(q, token, type = 'show', year = null) {
     }
 }
 
-async function searchTrakt(query, type, token, year = null) {
-    const searchType = type === 'episode' ? 'show' : 'movie';
-    let bestResult = null;
-
-    // 1. Try metadata-based clean title
 async function sendScrobble(action, payload, token) {
     const url = getSimklUrl(`/scrobble/${action}`);
     try {
@@ -1693,10 +1688,6 @@ async function fetchNetflixProgress(ids) {
 }
 
 
-async function bulkCheckTrakt(items, sendResponse) {
-    try {
-        const storage = await chrome.storage.local.get(['trakt_token', 'client_id']);
-        const token = storage.trakt_token?.access_token;
 async function bulkCheckSimkl(items, sendResponse) {
     try {
         const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token']);
