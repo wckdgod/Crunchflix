@@ -2,7 +2,7 @@ const API_URL = "https://api.simkl.com";
 const CLIENT_ID = "a63b63d85af0e02d4cfc791d87c881f710693ecc86d280fc98f8618f8f1faaad";
 const CLIENT_SECRET = "[REDACTED_SECRET]";
 const APP_NAME = "crunchflix";
-const APP_VERSION = "2.0.4";
+const APP_VERSION = "2.0.5";
 
 function getSimklUrl(endpoint) {
     const separator = endpoint.includes('?') ? '&' : '?';

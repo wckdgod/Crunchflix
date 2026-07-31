@@ -1,66 +1,76 @@
-# CRUNCHFLIX
+# CRUNCHFLIX 🎬
 
-**CRUNCHFLIX** is a browser extension that scrobbles your **Netflix**, **Crunchyroll**, **Jio Hotstar**, and **Prime Video** watch history automatically to [Simkl](https://simkl.com).
+![Version](https://img.shields.io/badge/version-2.0.4-red.svg)
+![Platform](https://img.shields.io/badge/platform-Chrome%20%7C%20Edge%20%7C%20Brave-blue.svg)
+![Simkl API](https://img.shields.io/badge/Scrobbler-Simkl-green.svg)
 
-It is a privacy-focused, "Bring Your Own Key" (BYOK) application. You provide your own API credentials, ensuring you have full control over your data and rate limits.
+**CRUNCHFLIX** is a powerful, privacy-focused browser extension that automatically scrobbles your watch history from **Netflix**, **Crunchyroll**, **Jio Hotstar**, and **Prime Video** directly to [Simkl](https://simkl.com).
 
-## Features
+---
 
-- **Automatic Scrobbling**: Syncs what you're watching on Netflix, Crunchyroll, Jio Hotstar, and Prime Video to Simkl.
-- **Instant Identification**: Displays a toast notification (popup) when a show or movie is successfully identified.
-- **Privacy Focused**: No data is sent to third-party servers other than Simkl and TMDB (for images).
-- **Customizable**: Use your own Simkl API App for personal use.
+## ✨ Features
 
-## Installation
+- **🚀 Multi-Platform Scrobbling**: Automatic, real-time playback tracking (`start`, `pause`, `stop`) across **Netflix**, **Crunchyroll**, **Jio Hotstar**, and **Prime Video**.
+- **🔑 Simkl PIN Device Auth**: Fast, hassle-free authentication via Simkl PIN device flow (`simkl.com/pin`).
+- **🎯 Precision Title & Episode Extraction**:
+  - **Netflix**: Scrapes player metadata, `SxxExx` badges, and NQ/Shakti member API payloads.
+  - **Crunchyroll**: Parses JSON-LD structured data and broadcasts metadata down to cross-origin player iframes.
+  - **Jio Hotstar**: Uses player UI accessibility labels, `TVEpisode` JSON-LD, and `og:title` metadata.
+  - **Prime Video**: Extracts shadow DOM elements (`.atvwebplayersdk-title-text`, `.atvwebplayersdk-subtitle-text`) and iframe broadcasts.
+- **🎨 Rich Dashboard Popup**: Real-time watching status badge, progress percentage, dominant poster color extraction, episode offset overrides, and manual title fixers.
+- **📊 History Sync & Backup**: Manage and bulk-sync past viewing history to your Simkl profile.
 
-Since this is a developer/personal build, you need to load it as an "Unpacked Extension" in Chrome (or Edge/Brave/Opera).
+---
 
-1. **Download the Code**: Clone this repository or download the ZIP.
+## 🛠️ Installation
 
-    ```bash
-    git clone https://github.com/wckdgod/Crunchflix.git
-    ```
+Since this is a developer build, load it as an **Unpacked Extension** in Chrome, Edge, Brave, or Opera:
 
-2. **Open Extensions Page**: Navigate to `chrome://extensions` in your browser.
-3. **Enable Developer Mode**: Toggle the switch in the top-right corner.
-4. **Load Unpacked**: Click the button and select the folder containing this code (where `manifest.json` is located).
+1. **Download / Clone the Repository**:
+   ```bash
+   git clone https://github.com/wckdgod/Crunchflix.git
+   ```
+2. **Open Extensions Manager**:
+   - **Chrome**: Navigate to `chrome://extensions`
+   - **Edge**: Navigate to `edge://extensions`
+3. **Enable Developer Mode**:
+   - Toggle the **Developer mode** switch in the top-right corner.
+4. **Load Unpacked Extension**:
+   - Click **Load unpacked** and select the `Crunchflix` repository directory (where `manifest.json` is located).
 
-## Configuration (Required)
+---
 
-Before the extension can work, you must provide your own API keys.
+## ⚙️ Configuration & Connection
 
-1. **Simkl API Keys**:
-    - Go to [Simkl Developer Settings](https://simkl.com/settings/developer/) and create a new application.
-    - **Name**: `CRUNCHFLIX` (or anything you like).
-    - **Redirect URI**: `urn:ietf:wg:oauth:2.0:oob`
-    - Copy the **Client ID** and **Client Secret**.
+1. Open the **CRUNCHFLIX** extension popup in your browser toolbar.
+2. Click **Connect to Simkl**.
+3. A window will display your unique 5-character **PIN Code**.
+4. Open [simkl.com/pin](https://simkl.com/pin), enter the PIN code, and authorize your app.
+5. The extension will automatically save your token and start scrobbling immediately!
 
-2. **TMDB API Key (Optional but Recommended)**:
-    - The extension uses TMDB to fetch high-quality poster images.
-    - Get a key from [The Movie Database API](https://www.themoviedb.org/documentation/api).
+---
 
-3. **Enter Keys in Crunchflix**:
-    - Click the **CRUNCHFLIX** extension icon.
-    - Click **"Configure API Keys"** (or go to Extension Details > Extension Options).
-    - Paste your keys and click **Save**.
+## 💡 Troubleshooting & FAQ
 
-4. **Connect**:
-    - Open the extension popup again.
-    - Click **"Connect to Simkl"**.
-    - Follow the authentication flow (PIN flow).
+### Service Worker Inspector
+If you ever want to view live background service worker logs in Edge or Chrome:
+- Go to `edge://serviceworker-internals` (or `chrome://serviceworker-internals`).
+- Search for `CRUNCHFLIX` and click **Inspect**.
+- Alternatively, right-click the extension toolbar icon and click **Inspect popup**.
 
-## Usage Tips
+### Extension Updates / Reloads
+If you reload the extension while a streaming tab is open, refresh the streaming tab (F5) to re-establish the content script communication port.
 
-- **Identification**: When a show is identified, a small popup will appear at the bottom of the screen.
-- **Troubleshooting**: If a show/movie isn't detected immediately (especially on Netflix), **pause the video and refresh the page**. This forces the content script to re-scan metadata.
+---
 
-## Credits & Sources
+## 📜 Credits & References
 
-- **Universal Trakt Scrobbler**: Logic for extracting Netflix metadata via the `shakti` API. Source: [trakt-tools/universal-trakt-scrobbler](https://github.com/trakt-tools/universal-trakt-scrobbler/tree/master/src).
-- **Made with Google Antigravity**: Developed using Google's experimental agentic coding assistant.
-- **Simkl API**: <https://simkl.com>
-- **TMDB**: <https://www.themoviedb.org>
+- **[Simkl API](https://simkl.com)** — JSON REST API & Scrobbler services.
+- **Universal Trakt Scrobbler** — Metadata extraction patterns for streaming platforms.
+- **Built with Google Antigravity** — AI-assisted agentic development.
 
-## License
+---
 
-MIT License. See [LICENSE](LICENSE) for details.
+## 📄 License
+
+[MIT License](LICENSE)
