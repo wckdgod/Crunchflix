@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "CRUNCHFLIX",
-  "version": "2.1.1",
-  "description": "Simkl scrobbler for Netflix, Crunchyroll, Jio Hotstar, and Prime Video.",
+  "name": "Scrobblr - Stream Scrobbler for Scrob",
+  "version": "3.2.0",
+  "description": "Automatic live media scrobbler for Netflix, Prime Video, JioHotstar, and Crunchyroll to self-hosted Scrob.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -20,8 +20,12 @@
     "*://*.amazon.co.jp/*",
     "*://*.amazon.de/*",
     "*://*.amazon.com.au/*",
-    "*://api.simkl.com/*",
-    "*://simkl.com/*",
+    "http://localhost/*",
+    "http://localhost:*/*",
+    "http://127.0.0.1/*",
+    "http://127.0.0.1:*/*",
+    "http://*/*",
+    "https://*/*",
     "*://api.themoviedb.org/*",
     "*://image.tmdb.org/*",
     "*://api.deepseek.com/*"
@@ -62,16 +66,20 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "CRUNCHFLIX"
+    "default_title": "StreamPulse",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "options_ui": {
     "page": "options.html",
     "open_in_tab": false
   },
   "icons": {
-    "16": "icon16.png",
-    "32": "icon32.png",
-    "48": "icon128.png",
-    "128": "icon128.png"
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   }
 }

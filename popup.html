@@ -1,15 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CRUNCHFLIX</title>
+    <title>Scrobblr</title>
     <link rel="stylesheet" href="popup.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 
 <body>
-    <!-- Global Dynamic Background Layer -->
+    <!-- Ambient Background Dynamic Blur -->
     <div class="global-bg-container">
         <img id="np-bg-image" class="global-bg-image" src="" alt="">
         <div class="global-bg-overlay"></div>
@@ -17,122 +20,204 @@
 
     <!-- Auth Flow: Not Connected -->
     <div id="auth-section" class="hidden auth-wrapper glass-panel">
-        <h2 class="auth-title">CRUNCHFLIX</h2>
-        <p class="auth-subtitle">Sync your watch history to Simkl</p>
-        <button id="authBtn" class="btn-primary">Connect to Simkl</button>
-        <button id="settingsBtnAuth" class="btn-secondary mt-sm">API Settings</button>
+        <div class="auth-brand-badge">
+            <span class="brand-spark">✦</span> SCROBBLR
+        </div>
+        <h2 class="auth-title">Sync Streaming Media</h2>
+        <p class="auth-subtitle">Seamlessly scrobble Netflix, Crunchyroll, JioHotstar & Prime Video to your self-hosted Scrob server</p>
+        <button id="authBtn" class="btn-primary glow-btn">Connect Account</button>
+        <button id="settingsBtnAuth" class="btn-secondary mt-sm">Server & API Settings</button>
     </div>
 
     <!-- Auth Flow: Code Entry -->
     <div id="code-section" class="hidden auth-wrapper glass-panel">
-        <h2 class="auth-title">AUTHORize</h2>
+        <div class="auth-brand-badge">AUTHORIZE DEVICE</div>
         <div id="trakt-code-display" class="trakt-code">----</div>
-        <p class="auth-subtitle">Go to <b>simkl.com/pin</b><br>and enter the code above.</p>
-        <button id="checkAuthBtn" class="btn-primary">I've Authorized</button>
+        <p class="auth-subtitle">Visit your Scrob instance (<b>/link</b>)<br>and enter the code above to pair.</p>
+        <button id="checkAuthBtn" class="btn-primary glow-btn">I've Authorized</button>
     </div>
 
-    <!-- Main Connected UI -->
+    <!-- Main Connected UI: Obsidian Iris Theme -->
     <div id="connected-section" class="hidden">
-        <div class="app-card">
-
-            <!-- 1. Media Context Section (Top) -->
-            <div class="poster-header">
-                <img id="np-image" class="full-poster-image" src="" alt="Poster">
-                <div class="poster-gradient"></div>
-
-                <div id="np-status" class="status-badge paused">
-                    <svg class="status-icon pause-icon" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                    </svg>
-                    <span class="status-text">PAUSED</span>
+        <main class="app-card app-content-layer">
+            
+            <!-- Top Header Bar -->
+            <header class="popup-header">
+                <div class="brand-logo">
+                    <span class="brand-spark">✦</span>
+                    <span class="brand-text">SCROBBLR</span>
                 </div>
-            </div>
+                <div class="header-badges">
+                    <div id="np-status" class="status-badge paused">
+                        <span class="status-icon-wrap">
+                            <svg class="status-icon pause-icon" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                            </svg>
+                        </span>
+                        <span class="status-text">WAITING</span>
+                    </div>
 
-            <!-- Content Container -->
-            <div class="app-content">
-                <div class="title-container">
-                    <h2 id="np-title" class="show-title">Nothing Playing</h2>
+                    <div id="platform-badge" class="platform-badge platform-unknown">
+                        <span class="platform-dot"></span>
+                        <span id="platform-name" class="platform-text">STREAMING</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Scrollable Content Viewport -->
+            <div class="scroll-content">
+                
+                <!-- Hero Media Banner -->
+                <div class="hero-banner" id="hero-backdrop-container">
+                    <img id="np-image" class="hero-image" src="" alt="Backdrop">
+                    <div class="hero-gradient"></div>
+                    
+                    <div class="hero-overlay-content">
+                        <div class="hero-tags-row">
+                            <span id="np-episode" class="episode-pill hidden"></span>
+                            <span id="episode-name" class="episode-name-pill hidden"></span>
+                        </div>
+                        <h2 id="np-title" class="show-title">Ready to Stream</h2>
+                        <div class="metadata-row">
+                            <span id="meta-year" class="meta-item"></span>
+                            <span id="meta-runtime" class="meta-item"></span>
+                            <span id="meta-genres" class="meta-pill"></span>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="metadata-row">
-                    <span id="meta-year"></span>
-                    <span id="np-episode"></span>
-                    <span id="meta-runtime" class="tabular-nums"></span>
-                    <span id="meta-genres"></span>
+                <!-- Live Watch Telemetry Card -->
+                <section class="telemetry-card">
+                    <div class="telemetry-header">
+                        <div class="telemetry-label-group">
+                            <span class="telemetry-label">CURRENT POSITION</span>
+                            <div class="telemetry-time-group">
+                                <span id="progress-time-label" class="telemetry-time">00:00 / 00:00</span>
+                            </div>
+                        </div>
+                        <span id="progress-pct-label" class="telemetry-pct">0%</span>
+                    </div>
+
+                    <!-- Glowing Progress Bar with 80% Marker -->
+                    <div class="progress-track-wrapper">
+                        <!-- 80% Threshold Indicator Line -->
+                        <div class="threshold-marker" title="Scrobble Threshold (80%)">
+                            <span class="threshold-text">80%</span>
+                        </div>
+                        <div class="progress-track">
+                            <div id="play-progress-bar" class="progress-fill" style="width: 0%;">
+                                <div class="progress-thumb"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Synopsis Accordion (if available) -->
+                <div id="synopsis-container" class="synopsis-wrapper hidden">
+                    <p id="synopsis-text" class="synopsis-text"></p>
                 </div>
 
-                <!-- NEW: Synopsis -->
-                <p id="synopsis-text" class="synopsis-text hidden">Loading synopsis...</p>
-
-                <div class="progress-track mt-4 mb-4">
-                    <div id="play-progress-bar" class="progress-fill"></div>
-                </div>
-
-                <!-- 2. Primary Actions Section (Middle) -->
-                <div class="primary-actions-v2">
-                    <button id="fixMatchBtn" class="btn-ghost-v2 main-action" title="Fix Match">
-                        <svg class="action-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
-                            </path>
+                <!-- Primary Action Bento Grid -->
+                <div class="actions-grid">
+                    <button id="fixMatchBtn" class="action-btn secondary-action" title="Search Scrob for correct title match">
+                        <svg class="action-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
-                        <span class="action-label">Fix Match</span>
+                        <span>Fix Match</span>
                     </button>
-                    <button id="fixEpisodeBtn" class="btn-ghost-v2 main-action" title="Fix Episode">
-                        <svg class="action-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z">
-                            </path>
+                    <button id="fixEpisodeBtn" class="action-btn secondary-action" title="Override season & episode numbering">
+                        <svg class="action-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
-                        <span class="action-label">Fix Ep</span>
+                        <span>Fix Episode</span>
                     </button>
-                    <!-- Settings button is smaller -->
-                    <button id="settingsBtn" class="btn-ghost-v2 settings-action" title="Settings">
-                        <svg class="action-icon no-margin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
-                            </path>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    <button id="scrobbleNowBtn" class="action-btn primary-action col-span-2" title="Send manual scrobble ping now">
+                        <svg class="action-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
+                        <span>Scrobble Now</span>
                     </button>
                 </div>
 
-                <!-- Fix Panels (Hidden by default) -->
-                <div id="fix-section" class="expanded-panel hidden">
-                    <span class="panel-label">Search Simkl</span>
-                    <div class="search-field">
-                        <input type="text" id="fixInput" placeholder="Title...">
-                        <button id="fixSearchBtn" class="btn-primary">🔍</button>
+                <!-- Collapsible Drawer: Manual Episode Mapping -->
+                <div id="fix-episode-section" class="drawer-panel hidden">
+                    <div class="drawer-header">
+                        <span class="drawer-title">MANUAL EPISODE OVERRIDE</span>
+                        <button id="cancelEpFixBtn" class="drawer-close" title="Close">&times;</button>
+                    </div>
+                    <p class="drawer-subtitle">Correct absolute numbering or season offsets for this anime/show.</p>
+                    <div class="drawer-form-row">
+                        <div class="input-col">
+                            <label for="fixSeasonInput" class="input-label">Season</label>
+                            <input type="number" id="fixSeasonInput" class="drawer-input" placeholder="1" min="1" value="1">
+                        </div>
+                        <div class="input-col">
+                            <label for="fixEpInput" class="input-label">Episode</label>
+                            <input type="number" id="fixEpInput" class="drawer-input" placeholder="1" min="1" value="1">
+                        </div>
+                        <div class="input-col-btn">
+                            <button id="saveEpFixBtn" class="btn-primary drawer-save-btn">Save</button>
+                        </div>
+                    </div>
+                    <div id="fix-ep-status" class="status-info"></div>
+                </div>
+
+                <!-- Collapsible Drawer: Fix Match Search -->
+                <div id="fix-section" class="drawer-panel hidden">
+                    <div class="drawer-header">
+                        <span class="drawer-title">SEARCH SCROB & TMDB</span>
+                        <button id="cancelFixBtn" class="drawer-close" title="Close">&times;</button>
+                    </div>
+                    <div class="search-box-row">
+                        <input type="text" id="fixInput" class="drawer-input flex-1" placeholder="Search show or movie title...">
+                        <button id="fixSearchBtn" class="btn-primary">Search</button>
                     </div>
                     <div id="fix-status" class="status-info"></div>
                     <div id="fix-results" class="results-list hidden"></div>
-                    <button id="cancelFixBtn" class="btn-secondary mt-sm">Cancel</button>
                 </div>
 
-                <div id="fix-episode-section" class="expanded-panel hidden">
-                    <span class="panel-label">Manual Episode Mapping</span>
-                    <div class="search-field">
-                        <input type="number" id="fixSeasonInput" placeholder="S" min="1">
-                        <input type="number" id="fixEpInput" placeholder="E" min="1">
-                        <button id="saveEpFixBtn" class="btn-primary">Save</button>
-                    </div>
-                    <div id="fix-ep-status" class="status-info"></div>
-                    <button id="cancelEpFixBtn" class="btn-secondary mt-sm">Cancel</button>
-                </div>
-
-                <!-- 3. System Actions Section (Bottom) -->
-                <div class="system-actions">
-                    <button id="openHistoryBtn" class="sys-link primary-sys-link">Sync History</button>
-                    <div class="sys-actions-right">
-                        <button id="resetMappingsBtn" class="sys-link muted-sys-link">Reset</button>
-                        <button id="disconnectBtn" class="sys-link danger-sys-link">Disconnect</button>
-                    </div>
-                </div>
             </div>
-        </div>
+
+            <!-- Sleek Footer Toolbar -->
+            <footer class="popup-footer">
+                <div class="footer-server-status">
+                    <span class="status-dot-pulse"></span>
+                    <span id="server-status-text" class="server-text" title="Connected Scrob Server">localhost:7330 - Scrob</span>
+                </div>
+                <div class="footer-actions">
+                    <button id="openScrobBtn" class="footer-icon-btn" title="Open Scrob Dashboard">
+                        <svg class="footer-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                    </button>
+                    <button id="openHistoryBtn" class="footer-icon-btn" title="View Scrob History">
+                        <svg class="footer-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </button>
+                    <button id="settingsBtn" class="footer-icon-btn" title="Extension Settings">
+                        <svg class="footer-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </button>
+                    <button id="resetMappingsBtn" class="footer-icon-btn footer-danger-btn" title="Reset Episode/Show Overrides">
+                        <svg class="footer-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                    </button>
+                    <button id="disconnectBtn" class="footer-icon-btn footer-danger-btn" title="Disconnect Server">
+                        <svg class="footer-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                    </button>
+                </div>
+            </footer>
+
+        </main>
     </div>
 
+    <script src="config.js"></script>
     <script src="popup.js"></script>
 </body>
 

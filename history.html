@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sync History - CRUNCHFLIX</title>
+    <title>Scrobblr - History Manager</title>
     <link rel="stylesheet" href="history.css">
 </head>
 
@@ -12,12 +12,12 @@
     <div class="container">
         <header>
             <div class="brand">
-                <h1>CRUNCHFLIX</h1>
+                <h1><span style="color:#d0bcff;filter:drop-shadow(0 0 10px rgba(208,188,255,0.4));">✦</span> SCROBBLR</h1>
                 <span>History Manager</span>
             </div>
             <div class="actions">
                 <button id="refresh-netflix" class="btn-secondary">Refresh Netflix Data</button>
-                <button id="sync-trakt" class="btn-primary">Sync Selected to Simkl</button>
+                <button id="sync-trakt" class="btn-primary">Sync Selected to Scrob</button>
             </div>
         </header>
 
@@ -32,7 +32,7 @@
             </div>
             <div class="stat-card">
                 <span id="synced-count" class="stat-value">0</span>
-                <span class="stat-label">Simkl Synced</span>
+                <span class="stat-label">Scrob Synced</span>
             </div>
         </section>
 
@@ -65,9 +65,9 @@
             </div>
             <div class="modal-body">
                 <div class="input-group">
-                    <label>Search Simkl or Paste Link</label>
+                    <label>Search Scrob / TMDB</label>
                     <input type="text" id="trakt-search-input" class="modal-input"
-                        placeholder="e.g. https://simkl.com/tv/76757 or 'Stranger Things'">
+                        placeholder="e.g. 'Stranger Things' or 'Breaking Bad'">
                 </div>
 
                 <div id="search-results-mini" class="search-results-mini" style="display: none;">
@@ -96,6 +96,7 @@
         </div>
     </div>
 
+    <script src="config.js"></script>
     <script src="history.js"></script>
 </body>
 

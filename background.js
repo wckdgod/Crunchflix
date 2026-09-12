@@ -1,7 +1,11 @@
-importScripts('config.js');
+if (typeof importScripts === 'function') {
+    try {
+        importScripts('config.js');
+    } catch (e) { }
+}
 
-const VERSION = "2.1.1";
-console.log(`[CRUNCHFLIX] Background script loaded. Version: ${VERSION}`);
+const VERSION = "3.1.0";
+console.log(`[STREAMPULSE] Background script loaded. Version: ${VERSION}`);
 
 async function remoteLog(message, context = 'BG', level = 'INFO') {
     try {
@@ -16,27 +20,42 @@ async function remoteLog(message, context = 'BG', level = 'INFO') {
 }
 // remoteLog(`Background service worker started. Build: ${VERSION}`, 'INIT');
 
-function getSimklToken(storage) {
+function getScrobAuth(storage) {
     if (!storage) return null;
-    if (typeof storage.simkl_token === 'string') return storage.simkl_token;
-    if (storage.simkl_token?.access_token) return storage.simkl_token.access_token;
-    if (typeof storage.trakt_token === 'string') return storage.trakt_token;
-    if (storage.trakt_token?.access_token) return storage.trakt_token.access_token;
-    return null;
+    const url = normalizeBaseUrl(storage.scrob_url || DEFAULT_SCROB_URL);
+    let token = null;
+    let apiKey = storage.scrob_api_key || (typeof DEFAULT_SCROB_API_KEY !== 'undefined' ? DEFAULT_SCROB_API_KEY : null);
+
+    if (typeof storage.scrob_token === 'string') token = storage.scrob_token;
+    else if (storage.scrob_token?.access_token) token = storage.scrob_token.access_token;
+    else if (typeof storage.simkl_token === 'string') token = storage.simkl_token;
+    else if (storage.simkl_token?.access_token) token = storage.simkl_token.access_token;
+
+    if (!token && !apiKey) return null;
+    return { url, token, apiKey };
 }
+
+function getSimklToken(storage) {
+    const auth = getScrobAuth(storage);
+    return auth ? (auth.token || auth.apiKey) : null;
+}
+
 const ports = new Map();         // tabId -> port
 const shaktiKeys = new Map();    // tabId -> { buildId, authUrl }
-const simklSearchCache = new Map(); // title -> searchResult
+const scrobSearchCache = new Map(); // title -> searchResult
+const simklSearchCache = scrobSearchCache; // alias for compatibility
+const activeScrobSessions = new Map(); // historyKey/tab -> sessionKey
 const tabResolvedTitle = new Map(); // tabId -> { title, epId }
 const scrobbledSessionHistory = new Set(); // title:S:E
 const resolvedTitleCache = new Map(); // tabId:epId -> resolvedMetadata
 const lastScrobble = { title: null, season: null, episode: null, status: null, timestamp: 0 };
 
-let isSyncing = false; // Guard to prevent concurrent history syncs
+let isSyncing = false;
+let activeKodiSession = null; // { item, auth, historyKey, tabId, progress } // Guard to prevent concurrent history syncs
 
 // --- Port Management (Tab Communication) ---
 chrome.runtime.onConnect.addListener((port) => {
-    if (port.name !== "crunchflix-port") return;
+    if (port.name !== "streampulse-port") return;
     const tabId = port.sender?.tab?.id;
     if (tabId) ports.set(tabId, port);
 
@@ -78,31 +97,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         fetchNetflixHistory(sendResponse);
         return true;
     }
-    else if (message.action === "bulkCheckTrakt" || message.action === "bulkCheckSimkl") {
-        bulkCheckSimkl(message.payload?.items || message.items, sendResponse);
+    else if (message.action === "bulkCheckScrob" || message.action === "bulkCheckSimkl" || message.action === "bulkCheckTrakt") {
+        bulkCheckScrob(message.payload?.items || message.items, sendResponse);
         return true;
     }
-    else if (message.action === "bulkSyncToTrakt" || message.action === "bulkSyncToSimkl") {
-        bulkSyncToSimkl(message.payload?.items || message.items, sendResponse);
+    else if (message.action === "bulkSyncToScrob" || message.action === "bulkSyncToSimkl" || message.action === "bulkSyncToTrakt") {
+        bulkSyncToScrob(message.payload?.items || message.items, sendResponse);
         return true;
     }
-    else if (message.action === "performTraktSearch" || message.action === "performSimklSearch") {
-        handleSimklSearch(message.query, message.type, sendResponse);
+    else if (message.action === "performScrobSearch" || message.action === "performSimklSearch" || message.action === "performTraktSearch") {
+        handleScrobSearch(message.query, message.type, sendResponse);
         return true;
     }
-    else if (message.action === "resolveTraktUrl" || message.action === "resolveSimklUrl") {
-        resolveSimklUrl(message.url, sendResponse);
+    else if (message.action === "resolveScrobUrl" || message.action === "resolveSimklUrl" || message.action === "resolveTraktUrl") {
+        resolveScrobUrl(message.url, sendResponse);
         return true;
     }
-    else if (message.action === "searchTrakt" || message.action === "searchTraktForPopup" || message.action === "searchSimkl" || message.action === "searchSimklForPopup") {
+    else if (message.action === "searchScrob" || message.action === "searchScrobForPopup" || message.action === "searchSimkl" || message.action === "searchSimklForPopup" || message.action === "searchTrakt" || message.action === "searchTraktForPopup") {
         (async () => {
             try {
-                const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token']);
-                const token = getSimklToken(storage);
-                if (!token) throw new Error("No Simkl token found.");
+                const storage = await chrome.storage.local.get(['scrob_url', 'scrob_token', 'scrob_api_key', 'simkl_token', 'trakt_token', 'tmdb_api_key']);
+                const auth = getScrobAuth(storage);
+                if (!auth) throw new Error("No Scrob credentials found. Please set your API Key or connect in Options.");
 
-                const searchType = message.payload?.type || 'tv';
-                const results = await doSearchRaw(message.payload?.query || message.query, token, searchType);
+                const searchType = message.payload?.type || message.type || 'tv';
+                const results = await doSearchRaw(message.payload?.query || message.query, auth, searchType, null, storage.tmdb_api_key);
                 sendResponse({ success: true, results: results });
             } catch (e) {
                 console.error(e);
@@ -155,13 +174,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // --- Lifecycle Management ---
 chrome.tabs.onUpdated.addListener((tabId, info) => {
     if (info.url || info.status === 'loading') {
-        // Aggressively clear tab metadata on any navigation or reload
-        console.log(`[CRUNCHFLIX] Tab ${tabId} updated (${info.status || 'url change'}), clearing metadata...`);
+        console.log(`[STREAMPULSE] Tab ${tabId} updated (${info.status || 'url change'}), clearing metadata...`);
         for (const key of resolvedTitleCache.keys()) {
             if (key.startsWith(`${tabId}:`)) resolvedTitleCache.delete(key);
         }
         tabResolvedTitle.delete(tabId);
         
+        // If this tab was actively playing on Scrob, stop the session immediately
+        if (activeKodiSession && activeKodiSession.tabId === tabId) {
+            console.log(`[STREAMPULSE] Active playback tab navigated/reloaded. Sending Player.OnStop to Scrob...`);
+            sendKodiStop(activeKodiSession.item, activeKodiSession.auth, false);
+            activeKodiSession = null;
+        }
+
         // Clear nowPlaying if it belonged to this tab
         chrome.storage.local.get(['nowPlaying'], (res) => {
             if (res.nowPlaying && res.nowPlaying.tabId === tabId) {
@@ -177,6 +202,13 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     shaktiKeys.delete(tabId);
     ports.delete(tabId);
 
+    // If this tab was actively playing on Scrob, stop the session immediately
+    if (activeKodiSession && activeKodiSession.tabId === tabId) {
+        console.log(`[STREAMPULSE] Active playback tab closed. Sending Player.OnStop to Scrob...`);
+        sendKodiStop(activeKodiSession.item, activeKodiSession.auth, false);
+        activeKodiSession = null;
+    }
+
     // Clear nowPlaying if it belonged to this tab
     chrome.storage.local.get(['nowPlaying'], (res) => {
         if (res.nowPlaying && res.nowPlaying.tabId === tabId) {
@@ -186,12 +218,12 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 });
 
 chrome.runtime.onStartup.addListener(() => {
-    console.log("[CRUNCHFLIX] Browser startup, clearing nowPlaying state.");
+    console.log("[STREAMPULSE] Browser startup, clearing nowPlaying state.");
     chrome.storage.local.remove('nowPlaying');
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-    console.log("[CRUNCHFLIX] Extension installed/updated, clearing nowPlaying state.");
+    console.log("[STREAMPULSE] Extension installed/updated, clearing nowPlaying state.");
     chrome.storage.local.remove('nowPlaying');
 });
 
@@ -227,7 +259,7 @@ function extractEpId(url) {
 async function resolveNetflixTitle(epId, tabId) {
     // 1. Try the new NQ Netflix API (Does not require buildId!)
     const nqUrl = `https://www.netflix.com/nq/website/memberapi/release/metadata?movieid=${epId}&imageFormat=jpg&withSize=true&materialize=true`;
-    console.log(`[CRUNCHFLIX] [NQ API] Fetching: ${nqUrl}`);
+    console.log(`[STREAMPULSE] [NQ API] Fetching: ${nqUrl}`);
     try {
         const response = await fetch(nqUrl, {
             method: 'GET',
@@ -239,7 +271,7 @@ async function resolveNetflixTitle(epId, tabId) {
             const video = data?.video;
 
             if (video) {
-                console.log(`[CRUNCHFLIX] [NQ API] Video Type: ${video.type}, Title: ${video.title}`);
+                console.log(`[STREAMPULSE] [NQ API] Video Type: ${video.type}, Title: ${video.title}`);
 
                 if (video.type === 'movie') {
                     return { title: video.title, type: 'movie' };
@@ -247,7 +279,7 @@ async function resolveNetflixTitle(epId, tabId) {
 
                 // EPISODE-SPECIFIC PAYLOAD (sometimes returned if materialize=true is missing/partial)
                 if (video.type === 'episode') {
-                    console.log(`[CRUNCHFLIX] [NQ API] Direct episode hit: S${video.seasonSeq}E${video.episodeSeq}`);
+                    console.log(`[STREAMPULSE] [NQ API] Direct episode hit: S${video.seasonSeq}E${video.episodeSeq}`);
                     return {
                         title: video.parentTitle || video.title,
                         type: 'show',
@@ -262,7 +294,7 @@ async function resolveNetflixTitle(epId, tabId) {
                     const urlId = parseInt(epId);
                     const currentId = video.currentEpisode;
 
-                    console.log(`[CRUNCHFLIX] [NQ API] Searching show for URL ID: ${urlId} (CurrentBookmark: ${currentId})`);
+                    console.log(`[STREAMPULSE] [NQ API] Searching show for URL ID: ${urlId} (CurrentBookmark: ${currentId})`);
 
                     if (video.seasons && Array.isArray(video.seasons)) {
                         for (const seasonObj of video.seasons) {
@@ -275,14 +307,14 @@ async function resolveNetflixTitle(epId, tabId) {
                             if (epMatch) {
                                 seasonNum = seasonObj.seq;
                                 episodeNum = epMatch.seq;
-                                console.log(`[CRUNCHFLIX] [NQ API] Found MATCH in Season ${seasonNum}! Ep Seq: ${episodeNum}`);
+                                console.log(`[STREAMPULSE] [NQ API] Found MATCH in Season ${seasonNum}! Ep Seq: ${episodeNum}`);
                                 break;
                             }
                         }
                     }
 
                     if (!seasonNum) {
-                        console.warn(`[CRUNCHFLIX] [NQ API] Failed to match ID ${epId} in seasons list.`);
+                        console.warn(`[STREAMPULSE] [NQ API] Failed to match ID ${epId} in seasons list.`);
                     }
 
                     return {
@@ -295,11 +327,11 @@ async function resolveNetflixTitle(epId, tabId) {
             }
         }
     } catch (e) {
-        console.warn("[CRUNCHFLIX] NQ metadata endpoint failed:", e);
+        console.warn("[STREAMPULSE] NQ metadata endpoint failed:", e);
     }
 
     // 2. Fallback to pathEvaluator if NQ API fails...
-    console.log("[CRUNCHFLIX] NQ API failed, falling back to pathEvaluator.");
+    console.log("[STREAMPULSE] NQ API failed, falling back to pathEvaluator.");
     const storage = await chrome.storage.local.get(['shakti']);
     const keys = shaktiKeys.get(tabId);
     const shakti = keys || storage.shakti;
@@ -309,7 +341,7 @@ async function resolveNetflixTitle(epId, tabId) {
     let activeToken = rawToken ? rawToken.replace(/\\u([0-9a-fA-F]{4})/g, (m, g) => String.fromCharCode(parseInt(g, 16))).replace(/\\(.)/g, '$1') : null;
 
     if (!activeToken || !keys?.buildId) {
-        console.warn("[CRUNCHFLIX] Missing Shakti keys for live scrobbler. Attempting recovery...");
+        console.warn("[STREAMPULSE] Missing Shakti keys for live scrobbler. Attempting recovery...");
         const recovered = await fetchAndScrapeNetflixAuth();
         if (recovered && recovered.authUrl) {
             // Re-resolve keys with the newly scraped token
@@ -346,7 +378,7 @@ async function resolveNetflixTitle(epId, tabId) {
         const videoData = data?.value?.videos?.[epId];
 
         if (videoData) {
-            console.log("[CRUNCHFLIX] [Falcor Debug] Raw Netflix Data:", JSON.stringify(videoData, null, 2));
+            console.log("[STREAMPULSE] [Falcor Debug] Raw Netflix Data:", JSON.stringify(videoData, null, 2));
 
             // Fallback chain: Try to get Ancestor Title, then Show Title, then standard title
             const actualShowTitle = videoData.ancestor?.title || videoData.show?.title || videoData.title;
@@ -368,20 +400,42 @@ async function resolveNetflixTitle(epId, tabId) {
             };
         }
     } catch (e) {
-        console.error("[CRUNCHFLIX] pathEvaluator lookup failed:", e);
+        console.error("[STREAMPULSE] pathEvaluator lookup failed:", e);
     }
     return null;
 }
 
+let lastLiveWebhookTime = 0;
+
 function handleLiveProgress(payload, sender) {
     if (!payload || payload.progress === undefined) return;
-    chrome.storage.local.get(['nowPlaying'], (res) => {
+    chrome.storage.local.get(['nowPlaying', 'scrob_url', 'scrob_token', 'scrob_api_key'], (res) => {
         if (res.nowPlaying && (res.nowPlaying.status === 'scrobbling' || res.nowPlaying.status === 'playing')) {
-            const updated = { ...res.nowPlaying, progress: payload.progress };
+            const updated = {
+                ...res.nowPlaying,
+                progress: payload.progress,
+                currentTime: payload.currentTime,
+                duration: payload.duration
+            };
             chrome.storage.local.set({ nowPlaying: updated });
 
             // Broadcast targeted live progress message specifically for smooth UI 
-            chrome.runtime.sendMessage({ action: "LIVE_PROGRESS", progress: payload.progress }).catch(() => { });
+            chrome.runtime.sendMessage({
+                action: "LIVE_PROGRESS",
+                progress: payload.progress,
+                currentTime: payload.currentTime,
+                duration: payload.duration
+            }).catch(() => { });
+
+            // Periodic live AVChange update to Scrob server (every 25 seconds)
+            const now = Date.now();
+            if (now - lastLiveWebhookTime >= 25000) {
+                lastLiveWebhookTime = now;
+                const auth = getScrobAuth(res);
+                if (auth && res.nowPlaying.title) {
+                    sendScrobble('progress', res.nowPlaying, auth, payload.progress, null, sender?.tab?.id, payload.currentTime, payload.duration);
+                }
+            }
         }
     });
 }
@@ -393,14 +447,14 @@ async function handleScrobble(data, sender) {
     const tab = await chrome.tabs.get(tabId).catch(() => null);
     const tabUrl = tab?.url || "";
 
-    console.log("[CRUNCHFLIX] Processing scrobble heartbeat...");
+    console.log("[STREAMPULSE] Processing scrobble heartbeat...");
 
     // ── 1. RESOLUTION: Define the clean title ──
 
     try {
         if (tabUrl.includes('netflix.com')) {
             const epId = extractEpId(tabUrl);
-            console.log(`[CRUNCHFLIX] Netflix match: epId=${epId} from URL: ${tabUrl}`);
+            console.log(`[STREAMPULSE] Netflix match: epId=${epId} from URL: ${tabUrl}`);
 
             if (epId) {
                 const cacheKey = `${tabId}:${epId}`;
@@ -410,7 +464,7 @@ async function handleScrobble(data, sender) {
                     const cached = tabResolvedTitle.get(tabId);
                     if (cached.epId === epId) {
                         data.title = cached.title;
-                        console.log("[CRUNCHFLIX] Using tab-cached metadata:", data.title);
+                        console.log("[STREAMPULSE] Using tab-cached metadata:", data.title);
                     }
                 }
 
@@ -418,9 +472,9 @@ async function handleScrobble(data, sender) {
                 if (!data.title) {
                     if (resolvedTitleCache.has(cacheKey)) {
                         data.title = resolvedTitleCache.get(cacheKey);
-                        console.log("[CRUNCHFLIX] Using global-cached metadata:", data.title);
+                        console.log("[STREAMPULSE] Using global-cached metadata:", data.title);
                     } else {
-                        console.log(`[CRUNCHFLIX] Cache miss for ${epId}. Resolving via pathEvaluator...`);
+                        console.log(`[STREAMPULSE] Cache miss for ${epId}. Resolving via pathEvaluator...`);
                         const metadata = await resolveNetflixTitle(epId, tabId);
                         if (metadata && metadata.title) {
                             // Reconstruct the composite title for episodes to keep parseTitle/UI compatible
@@ -432,14 +486,14 @@ async function handleScrobble(data, sender) {
 
                             resolvedTitleCache.set(cacheKey, data.title);
                             tabResolvedTitle.set(tabId, { title: data.title, epId: epId });
-                            console.log(`[CRUNCHFLIX] Successfully cached MRE metadata:`, data.title);
+                            console.log(`[STREAMPULSE] Successfully cached MRE metadata:`, data.title);
                         }
                     }
                 }
             }
         }
     } catch (e) {
-        console.warn("[CRUNCHFLIX] Primary resolution failed, falling back to scrapers...");
+        console.warn("[STREAMPULSE] Primary resolution failed, falling back to scrapers...");
     }
 
     // ── 2. FALLBACK: Scrapers, Tab Title ──
@@ -459,7 +513,8 @@ async function handleScrobble(data, sender) {
         if (t.includes("season") && !t.includes("episode") && !t.includes("ep.") && !t.includes("ep ")) return true;
         const exactMatches = ["vilos", "netflix", "crunchyroll", "watch", "{iframe, needs metadata}", "jiohotstar", "jio hotstar", "hotstar", "disney+ hotstar", "prime video", "primevideo", "amazon prime", "amazon prime video", "amazon"];
         if (exactMatches.includes(t)) return true;
-        if (t.includes("watch tv shows, movies") || t.includes("live cricket") || t.startsWith("netflix - ")) return true;
+        if (t.includes("watch tv shows, movies") || t.includes("watch movies, tv shows") || t.includes("sports, and live tv") || t.includes("live cricket") || t.startsWith("netflix - ")) return true;
+        if (t.startsWith("prime video:") && (t.includes("watch") || t.includes("movies") || t.includes("tv shows"))) return true;
         return false;
     };
 
@@ -469,14 +524,35 @@ async function handleScrobble(data, sender) {
         data.title = isGenericTitle(tabTitle) ? null : tabTitle;
     }
 
-    // If STILL generic, schedule a retry in 5s (but NOT more than 3 times per tab to avoid spam)
+    // Get current state to check if we need to update UI or detect service change
+    const storage = await chrome.storage.local.get(['scrob_url', 'scrob_token', 'scrob_api_key', 'simkl_token', 'trakt_token', 'corrections', 'client_id', 'nowPlaying', 'tmdb_api_key']);
+    const currentNP = storage.nowPlaying || {};
+
+    // If STILL generic, detect service/tab change so UI resets from previous show to "resolving" state on the new platform
     if (isGenericTitle(data.title)) {
+        const platformChanged = data.platform && currentNP.platform && currentNP.platform !== data.platform;
+        const tabChanged = currentNP.tabId && currentNP.tabId !== tabId && data.status === 'playing';
+
+        if (platformChanged || tabChanged) {
+            console.log(`[STREAMPULSE] Streaming service/tab change detected (${currentNP.platform || 'none'} -> ${data.platform || 'unknown'}). Resetting stale nowPlaying state.`);
+            lastScrobble.title = null;
+            lastScrobble.timestamp = 0;
+            chrome.storage.local.set({
+                'nowPlaying': {
+                    status: 'resolving',
+                    platform: data.platform || 'netflix',
+                    tabId: tabId,
+                    timestamp: Date.now()
+                }
+            });
+        }
+
         if (sender?.tab?.id) {
             const retryKey = `retry:${sender.tab.id}`;
             const retryCount = (globalThis[retryKey] || 0) + 1;
             if (retryCount <= 3) {
                 globalThis[retryKey] = retryCount;
-                console.log(`[CRUNCHFLIX] Title still unknown, scheduling retry ${retryCount}/3...`);
+                console.log(`[STREAMPULSE] Title still unknown for ${data.platform || 'platform'}, scheduling retry ${retryCount}/3...`);
                 setTimeout(() => {
                     handleScrobble({ ...data, title: null }, sender);
                 }, 5000);
@@ -490,11 +566,7 @@ async function handleScrobble(data, sender) {
     // Success — reset retry count
     if (sender?.tab?.id) delete globalThis[`retry:${sender.tab.id}`];
 
-    // Get current state to check if we need to update UI
-    const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token', 'corrections', 'client_id', 'nowPlaying']);
-
     // IMMEDIATE UI FEEDBACK: Update storage with the raw title so the popup doesn't stay stuck on the previous show
-    const currentNP = storage.nowPlaying || {};
     const isNewShow = (currentNP.rawTitle || currentNP.title) !== data.title && !isGenericTitle(data.title);
     
     // STATE PROTECTION: If we already have a detailed "scrobbling" status from a tab,
@@ -502,7 +574,7 @@ async function handleScrobble(data, sender) {
     const isIframeOverwrite = data.fromIframe && currentNP.status === 'scrobbling' && currentNP.tabId === tabId;
 
     if (isNewShow && !isIframeOverwrite) {
-        console.log(`[CRUNCHFLIX] New show detected: "${data.title}". Overwriting stale state ("${currentNP.rawTitle || currentNP.title}").`);
+        console.log(`[STREAMPULSE] New show detected: "${data.title}". Overwriting stale state ("${currentNP.rawTitle || currentNP.title}").`);
         
         // Reset throttle to ensure this new show's first message always processes
         lastScrobble.title = null;
@@ -520,21 +592,32 @@ async function handleScrobble(data, sender) {
         });
     }
 
-    // 1. Get Token
-    const token = getSimklToken(storage);
+    // 1. Get Scrob Auth Credentials
+    const auth = getScrobAuth(storage);
 
-    if (!token) {
-        console.log("[CRUNCHFLIX] No Simkl token found in storage. Please click 'Connect to Simkl' in the extension popup to log in.");
+    if (!auth) {
+        console.log("[STREAMPULSE] No Scrob credentials found in storage. Please click 'Connect Account' or set your Scrob API Key in Settings.");
         return;
     }
 
     // 2. Parse Title
     const platform = data.platform || 'netflix';
-    const parsed = await parseTitle(data.title, platform);
+    let parsed = null;
+    if (data.season !== undefined && data.episode !== undefined && data.season !== null && data.episode !== null) {
+        parsed = {
+            type: data.type || 'episode',
+            title: data.showTitle || data.cleanTitle || (data.title ? sanitizeShowTitle(data.title) : ''),
+            season: parseInt(data.season, 10),
+            episode: parseInt(data.episode, 10)
+        };
+    } else {
+        parsed = await parseTitle(data.title, platform);
+    }
+
     if (!parsed) {
         console.log("Could not parse title:", data.title);
         chrome.storage.local.set({
-            'nowPlaying': { status: 'parse_error', title: data.title, rawTitle: data.title }
+            'nowPlaying': { status: 'parse_error', title: data.title, rawTitle: data.title, platform: data.platform || platform, tabId: tabId }
         });
         return;
     }
@@ -549,7 +632,7 @@ async function handleScrobble(data, sender) {
         }
     }
 
-    console.log(`[CRUNCHFLIX] Successfully parsed metadata: "${parsed.title}" S${parsed.season}E${parsed.episode}`);
+    console.log(`[STREAMPULSE] Successfully parsed metadata: "${parsed.title}" S${parsed.season}E${parsed.episode}`);
 
     if (tabId && platform === 'netflix') {
         tabResolvedTitle.set(tabId, { title: data.title, epId: extractEpId(tabUrl) });
@@ -558,74 +641,120 @@ async function handleScrobble(data, sender) {
     let finalImage = null;
     let synopsis = null;
     
-    // 3. Search Simkl (Priority: 1. Manual Corrections, 2. Memory Cache, 3. API Search)
+    // 3. Search Scrob (Priority: 1. Manual Corrections, 2. Memory Cache, 3. API Search)
     let searchResult = null;
     const corrections = storage.corrections || {};
     const cleanForCorrection = sanitizeShowTitle(parsed.title);
+    const baseShowName = cleanForCorrection.includes(' - ') ? cleanForCorrection.split(/\s*-\s*/)[0].trim() : cleanForCorrection;
+    const correctionObj = corrections[cleanForCorrection] || corrections[baseShowName];
 
-    if (corrections[cleanForCorrection]) {
-        const correctionObj = corrections[cleanForCorrection];
-
-        if (correctionObj.data || !correctionObj.offsets) {
-            const resultData = correctionObj.data || correctionObj;
-            console.log(`[CRUNCHFLIX] Using show-level override for "${cleanForCorrection}":`, (resultData.show || resultData.movie)?.title);
+    if (correctionObj) {
+        // Direct manual show override
+        if (correctionObj.data && (correctionObj.data.show || correctionObj.data.movie || correctionObj.data.title || correctionObj.data.id)) {
+            const resultData = correctionObj.data;
+            console.log(`[STREAMPULSE] Using show-level override for "${cleanForCorrection}":`, (resultData.show || resultData.movie || resultData)?.title);
             searchResult = resultData;
+        }
+
+        // Direct manual episode override (e.g. from Fix Ep)
+        if (correctionObj.manualEpisode) {
+            console.log(`[STREAMPULSE] Applying manual episode override for "${cleanForCorrection}": S${correctionObj.manualEpisode.s} E${correctionObj.manualEpisode.e}`);
+            parsed.type = 'episode';
+            parsed.season = correctionObj.manualEpisode.s;
+            parsed.episode = correctionObj.manualEpisode.e;
+            parsed.title = baseShowName;
+        }
+
+        // Raw title mapping
+        if (correctionObj.rawMapping && data.title && correctionObj.rawMapping[data.title]) {
+            const rm = correctionObj.rawMapping[data.title];
+            console.log(`[STREAMPULSE] Applying rawTitle mapping for "${data.title}": S${rm.s} E${rm.e}`);
+            parsed.type = 'episode';
+            parsed.season = rm.s;
+            parsed.episode = rm.e;
+            parsed.title = baseShowName;
         }
 
         if (parsed.type === 'episode' && correctionObj.offsets) {
             const mappingKey = `${parsed.season}_${parsed.episode}`;
             if (correctionObj.offsets[mappingKey]) {
                 const mapped = correctionObj.offsets[mappingKey];
-                console.log(`[CRUNCHFLIX] Applying episode offset: S${parsed.season}E${parsed.episode} -> S${mapped.s}E${mapped.e}`);
+                console.log(`[STREAMPULSE] Applying episode offset: S${parsed.season}E${parsed.episode} -> S${mapped.s}E${mapped.e}`);
                 parsed.season = mapped.s;
                 parsed.episode = mapped.e;
             }
         }
     }
 
-    if (!searchResult && simklSearchCache.has(parsed.title)) {
-        const cached = simklSearchCache.get(parsed.title);
+    if (!searchResult && scrobSearchCache.has(parsed.title)) {
+        const cached = scrobSearchCache.get(parsed.title);
         const cachedEntity = cached.show || cached.movie || cached;
-        const cachedIsShow = !!cached.show || cached.ids?.simkl || cached.ids?.imdb;
+        const cachedIsShow = !!cached.show || (cached.media_type === 'show') || (cached.media_type === 'series') || (cached.type === 'series') || (cached.ids?.tmdb);
         const needsShow = parsed.type === 'episode';
-        if (cachedIsShow === needsShow) {
-            console.log(`[CRUNCHFLIX] Using search cache for "${parsed.title}"`);
+        if (cachedIsShow === needsShow || !needsShow) {
+            console.log(`[STREAMPULSE] Using search cache for "${parsed.title}"`);
             searchResult = cached;
         } else {
-            simklSearchCache.delete(parsed.title);
+            scrobSearchCache.delete(parsed.title);
         }
     }
 
     if (!searchResult) {
-        searchResult = await searchSimkl(parsed.title, parsed.type, token, data.year);
+        searchResult = await searchScrob(parsed.title, parsed.type, auth, data.year, platform, parsed.isAmbiguous, storage.tmdb_api_key);
         if (searchResult) {
-            simklSearchCache.set(parsed.title, searchResult);
+            scrobSearchCache.set(parsed.title, searchResult);
         }
     }
 
     if (!searchResult) {
-        console.log("Show not found on Simkl:", parsed.title);
+        console.log("[STREAMPULSE] Show not found on Scrob / TMDB:", parsed.title);
         chrome.storage.local.set({
-            'nowPlaying': { status: 'not_found', title: parsed.title, rawTitle: data.title, progress: data.progress || 0 }
+            'nowPlaying': { status: 'not_found', title: parsed.title, rawTitle: data.title, progress: data.progress || 0, platform: data.platform || platform, tabId: tabId }
         });
         return;
     }
 
-    const show = searchResult.show || searchResult.movie || searchResult;
-    console.log("Found Item on Simkl:", show.title, "ID:", show.ids?.simkl || show.ids?.imdb || show.ids?.tmdb);
+    if (searchResult.mediaType === 'show' || searchResult.mediaType === 'tv' || searchResult.media_type === 'series' || (searchResult.show && !searchResult.movie && parsed.isAmbiguous)) {
+        parsed.type = 'episode';
+        if (!parsed.season) parsed.season = 1;
+        if (!parsed.episode) parsed.episode = 1;
+    }
 
-    finalImage = show.poster ? `https://simkl.in/posters/${show.poster}_m.jpg` : null;
-    if (!finalImage && show.ids?.tmdb) {
-        finalImage = await getTmdbImageById(show.ids.tmdb, parsed.type);
+    const show = searchResult.show || searchResult.movie || searchResult;
+    const itemTmdbId = show.ids?.tmdb || show.tmdb_id || show.id;
+    console.log("[STREAMPULSE] Found Item on Scrob:", show.title, "TMDB ID:", itemTmdbId);
+
+    if (show.poster_path) {
+        finalImage = show.poster_path.startsWith('http') ? show.poster_path : `https://image.tmdb.org/t/p/w500${show.poster_path}`;
+    } else if (show.poster) {
+        finalImage = show.poster.startsWith('http') ? show.poster : `https://image.tmdb.org/t/p/w500${show.poster}`;
+    }
+
+    let finalBackdrop = null;
+    if (show.backdrop_path) {
+        finalBackdrop = show.backdrop_path.startsWith('http') ? show.backdrop_path : `https://image.tmdb.org/t/p/w1280${show.backdrop_path}`;
+    } else if (show.backdrop) {
+        finalBackdrop = show.backdrop.startsWith('http') ? show.backdrop : `https://image.tmdb.org/t/p/w1280${show.backdrop}`;
+    }
+
+    if (!finalImage && itemTmdbId) {
+        finalImage = await getTmdbImageById(itemTmdbId, parsed.type);
     }
     if (!finalImage) {
         finalImage = await getTmdbImage(parsed.title, parsed.type);
     }
+    if (!finalBackdrop) {
+        finalBackdrop = finalImage;
+    }
 
     synopsis = show.overview || null;
-    if (parsed.type === 'episode' && show.ids?.simkl) {
-        const epOverview = await getSimklEpisodeOverview(show.ids.simkl, parsed.season || 1, parsed.episode, token);
-        if (epOverview) synopsis = epOverview;
+    let episodeTitle = null;
+    if ((parsed.type === 'episode' || parsed.type === 'anime') && itemTmdbId) {
+        const epData = await getScrobEpisodeDetails(itemTmdbId, parsed.season || 1, parsed.episode, auth, storage.tmdb_api_key);
+        if (epData) {
+            if (epData.overview || epData.description) synopsis = epData.overview || epData.description;
+            if (epData.name || epData.title) episodeTitle = epData.name || epData.title;
+        }
     }
 
     let actionType = 'stop';
@@ -638,10 +767,10 @@ async function handleScrobble(data, sender) {
         parsed.episode === lastScrobble.episode);
     const isSameStatus = actionType === lastScrobble.status;
     const timeDiff = now - lastScrobble.timestamp;
-    const THROTTLE_LIMIT = 10000;
+    const THROTTLE_LIMIT = 20000;
 
     if (isSameEpisode && isSameStatus && timeDiff < THROTTLE_LIMIT) {
-        console.log(`[CRUNCHFLIX] Throttling API call (${actionType}). Last sent ${timeDiff / 1000}s ago.`);
+        console.log(`[STREAMPULSE] Throttling API call (${actionType}). Last sent ${timeDiff / 1000}s ago.`);
         chrome.storage.local.get(['nowPlaying'], (res) => {
             if (res.nowPlaying && res.nowPlaying.title === parsed.title) {
                 chrome.storage.local.set({
@@ -665,50 +794,17 @@ async function handleScrobble(data, sender) {
     const netflixEpId = extractEpId(tabUrl);
     const progressVal = Math.min(100, Math.max(0, parseFloat((data.progress || 1).toFixed(2))));
 
-    const payload = {};
-    if (parsed.type === 'episode') {
-        let targetSeason = parsed.season;
-        payload.shows = [
-            {
-                title: show.title || parsed.title,
-                year: show.year || data.year || null,
-                ids: {
-                    ...(show.ids || {}),
-                    ...(netflixEpId ? { netflix: parseInt(netflixEpId) } : {})
-                },
-                episodes: [
-                    {
-                        season: targetSeason || 1,
-                        number: parsed.episode
-                    }
-                ]
-            }
-        ];
-    } else {
-        payload.movies = [
-            {
-                title: show.title || parsed.title,
-                year: show.year || data.year || null,
-                ids: {
-                    ...(show.ids || {}),
-                    ...(netflixEpId ? { netflix: parseInt(netflixEpId) } : {})
-                }
-            }
-        ];
-    }
-
-    payload.progress = progressVal;
     const historyKey = `${parsed.title}:${parsed.season}:${parsed.episode}`;
 
-    if (payload.progress >= 85) {
+    if (progressVal >= 80) {
         actionType = 'stop';
         if (scrobbledSessionHistory.has(historyKey)) {
-            console.log(`[CRUNCHFLIX] Already scrobbled ${historyKey} as 'stop'. Skipping.`);
+            console.log(`[STREAMPULSE] Already scrobbled ${historyKey} as 'stop'. Skipping.`);
             return;
         }
     }
 
-    console.log(`[CRUNCHFLIX] MATCHED SHOW: ${parsed.title} (Simkl ID: ${show.ids?.simkl})`);
+    console.log(`[STREAMPULSE] MATCHED SHOW: ${parsed.title} (TMDB ID: ${itemTmdbId})`);
 
     if (sender?.tab?.id) {
         chrome.tabs.sendMessage(sender.tab.id, {
@@ -717,10 +813,20 @@ async function handleScrobble(data, sender) {
         }).catch(() => { });
     }
 
-    console.log(`[CRUNCHFLIX] Sending ${actionType} to Simkl...`, payload);
-    await sendScrobble(actionType, payload, token);
+    console.log(`[STREAMPULSE] Sending ${actionType} to Scrob...`, show.title);
+    await sendScrobble(actionType, {
+        ...show,
+        title: show.title || parsed.title,
+        year: show.year || data.year || null,
+        media_type: parsed.type,
+        season: parsed.season,
+        episode: parsed.episode,
+        episodeTitle: episodeTitle || parsed.episodeTitle || null,
+        runtime: show.runtime || null,
+        ids: { ...(show.ids || {}), tmdb: itemTmdbId, netflix: netflixEpId ? parseInt(netflixEpId) : undefined }
+    }, auth, progressVal, historyKey, tabId, data.currentTime, data.duration);
 
-    if (actionType === 'stop') {
+    if (actionType === 'stop' && progressVal >= 80) {
         scrobbledSessionHistory.add(historyKey);
     }
 
@@ -739,40 +845,71 @@ async function handleScrobble(data, sender) {
             type: parsed.type,
             season: finalSeason,
             episode: parsed.episode,
+            episodeTitle: episodeTitle,
             image: finalImage,
+            backdrop: finalBackdrop,
+            progress: progressVal,
+            currentTime: data.currentTime || null,
+            duration: data.duration || null,
             status: actionType === 'start' ? 'scrobbling' : (actionType === 'pause' ? 'paused' : 'stopped'),
             timestamp: Date.now(),
             traktTitle: show.title,
             traktYear: show.year,
-            year: show.year,
+            year: show.year || data.year || null,
+            tmdb_id: itemTmdbId,
+            ids: { ...(show.ids || {}), tmdb: itemTmdbId, netflix: netflixEpId ? parseInt(netflixEpId) : undefined },
             synopsis: synopsis,
-            rating: show.ratings?.simkl?.rating ? show.ratings.simkl.rating.toFixed(1) : null,
+            rating: show.rating ? String(show.rating) : (show.vote_average ? String(show.vote_average.toFixed(1)) : null),
             genres: show.genres ? show.genres.slice(0, 3) : [],
             runtime: show.runtime || null,
             certification: show.certification || null,
-            network: show.network || null
+            network: show.network || null,
+            platform: data.platform || platform,
+            tabId: tabId
         }
     });
 }
 
-async function getSimklEpisodeOverview(showId, season, episode, token) {
+async function getScrobEpisodeDetails(showTmdbId, season, episode, auth, tmdbKey = null) {
     try {
-        if (!showId) return null;
-        const url = getSimklUrl(`/tv/episodes/${showId}`);
+        if (!showTmdbId || !auth) return null;
+        const url = getScrobUrl(`/shows/${showTmdbId}/season/${season}/${episode}`, auth.url);
         const res = await fetch(url, {
-            headers: getSimklHeaders(token)
+            headers: getScrobHeaders(auth.token, auth.apiKey)
         });
-        if (!res.ok) return null;
-        const episodes = await res.json();
-        if (Array.isArray(episodes)) {
-            const ep = episodes.find(e => e.season == season && e.episode == episode);
-            return ep?.description || ep?.overview || null;
+        if (res.ok) {
+            const ep = await res.json();
+            return {
+                title: ep.name || ep.title || null,
+                overview: ep.overview || ep.description || null,
+                date: ep.air_date || null
+            };
         }
-        return null;
     } catch (e) {
-        console.warn('[CRUNCHFLIX] Could not fetch Simkl episode overview:', e);
-        return null;
+        // Fallback to TMDB
     }
+
+    if (tmdbKey && showTmdbId) {
+        try {
+            const tmdbUrl = `https://api.themoviedb.org/3/tv/${showTmdbId}/season/${season}/episode/${episode}?api_key=${tmdbKey}`;
+            const res = await fetch(tmdbUrl);
+            if (res.ok) {
+                const ep = await res.json();
+                return {
+                    title: ep.name || null,
+                    overview: ep.overview || null,
+                    date: ep.air_date || null
+                };
+            }
+        } catch (e) {}
+    }
+    return null;
+}
+
+async function getSimklEpisodeDetails(showId, season, episode, token) {
+    const storage = await chrome.storage.local.get(['scrob_url', 'scrob_token', 'scrob_api_key', 'tmdb_api_key']);
+    const auth = getScrobAuth(storage);
+    return getScrobEpisodeDetails(showId, season, episode, auth, storage.tmdb_api_key);
 }
 
 // This function is injected into the tab's MAIN frame by chrome.scripting.executeScript
@@ -786,24 +923,26 @@ function extractMetadataFromPage() {
         const ldScripts = document.querySelectorAll('script[type="application/ld+json"]');
         for (const script of ldScripts) {
             try {
-                const json = JSON.parse(script.textContent);
-
-                if (json.datePublished || json.uploadDate) {
-                    const d = new Date(json.datePublished || json.uploadDate);
-                    if (!isNaN(d.getFullYear())) year = d.getFullYear();
-                }
-
-                if (json['@type'] === 'TVEpisode' || json.partOfSeries) {
-                    const series = json.partOfSeries?.name;
-                    const episodeNumber = json.episodeNumber;
-
-                    if (!year && json.partOfSeries?.startDate) {
-                        const d = new Date(json.partOfSeries.startDate);
+                const parsedJson = JSON.parse(script.textContent);
+                const items = Array.isArray(parsedJson) ? parsedJson : (parsedJson['@graph'] || [parsedJson]);
+                for (const json of items) {
+                    if (json.datePublished || json.uploadDate) {
+                        const d = new Date(json.datePublished || json.uploadDate);
                         if (!isNaN(d.getFullYear())) year = d.getFullYear();
                     }
 
-                    if (series && episodeNumber) {
-                        return { title: `${series} - Episode ${episodeNumber}`, year: year };
+                    if (json['@type'] === 'TVEpisode' || json.partOfSeries) {
+                        const series = json.partOfSeries?.name || json.partOfSeason?.partOfSeries?.name || (json['@type'] === 'TVEpisode' ? json.name : null);
+                        const episodeNumber = json.episodeNumber;
+
+                        if (!year && json.partOfSeries?.startDate) {
+                            const d = new Date(json.partOfSeries.startDate);
+                            if (!isNaN(d.getFullYear())) year = d.getFullYear();
+                        }
+
+                        if (series && episodeNumber) {
+                            return { title: `${series} - Episode ${episodeNumber}`, year: year };
+                        }
                     }
                 }
             } catch (e) { /* ignore */ }
@@ -816,22 +955,50 @@ function extractMetadataFromPage() {
 
         let crShow = "";
         let crEp = "";
-        const showLink = document.querySelector('a[href*="/series/"] h4');
-        if (showLink) crShow = showLink.textContent;
+        const showLink = document.querySelector('[data-t="show-title-link"], a[href*="/series/"] h4, a[href*="/series/"], .show-title-link, [class*="show-title"]');
+        if (showLink) crShow = showLink.textContent.trim();
         else {
             const h4s = document.getElementsByTagName('h4');
-            if (h4s.length > 0) crShow = h4s[0].textContent;
+            if (h4s.length > 0) crShow = h4s[0].textContent.trim();
         }
+
+        const crEpNumEl = document.querySelector('[data-t="episode-number"], [class*="episode-num"]');
+        if (crEpNumEl) {
+            crEp = crEpNumEl.textContent.trim();
+        }
+
         const headings = document.getElementsByTagName('h1');
-        if (headings.length > 0) crEp = headings[0].textContent;
+        let epHeadingText = headings.length > 0 ? headings[0].textContent.trim() : '';
+
+        if (!crEp && epHeadingText) {
+            const epMatch = epHeadingText.match(/(?:E|Episode|Ep\.?)\s*(\d+)/i);
+            if (epMatch) crEp = epMatch[1];
+        }
+
+        // Check next episode card in player: "NEXT EPISODE: E4 - The King's Homecoming"
+        if (!crEp) {
+            const nextEpEl = document.querySelector('[data-t="next-episode"], [class*="next-episode"]');
+            if (nextEpEl) {
+                const nextMatch = (nextEpEl.innerText || nextEpEl.textContent).match(/E(\d+)/i);
+                if (nextMatch) {
+                    const derived = parseInt(nextMatch[1], 10) - 1;
+                    if (derived > 0) crEp = String(derived);
+                }
+            }
+        }
 
         if (crShow && crEp) {
-            const epMatch = crEp.match(/E(\d+)/);
-            if (epMatch) return { title: `${crShow} - Episode ${epMatch[1]}`, year: year };
+            return { title: `${crShow} - Episode ${crEp}`, year: year };
         }
 
         const ogTitle = document.querySelector('meta[property="og:title"]')?.content;
-        if (ogTitle) return { title: ogTitle, year: year };
+        if (ogTitle) {
+            let cleanOg = ogTitle.replace(/^Watch\s+/i, '').replace(/\s*-\s*Watch on Crunchyroll$/i, '');
+            if (crEp && !cleanOg.match(/episode|e\d+/i)) {
+                return { title: `${cleanOg} - Episode ${crEp}`, year: year };
+            }
+            return { title: cleanOg, year: year };
+        }
     }
 
     // --- Netflix ---
@@ -857,9 +1024,9 @@ function extractMetadataFromPage() {
                         showPart = mangledMatch[1].trim();
                     }
 
-                return { title: `${showName} - Season ${seasonNum} Episode ${epNum[1]}` };
+                    return { title: `${showPart || text} - Season ${seMatch[1]} Episode ${seMatch[2]}` };
                 }
-                return { title: `${showName} - ${epText}` };
+                return { title: text };
             }
         } catch (e) { /* ignore */ }
     }
@@ -953,22 +1120,50 @@ function extractMetadataFromPage() {
                 } catch (e) { }
                 return null;
             };
-            const titleElement = querySelectorShadow('.atvwebplayersdk-title-text');
-            const subtitleElement = querySelectorShadow('.atvwebplayersdk-subtitle-text');
+            const titleSelectors = [
+                '.atvwebplayersdk-title-text',
+                '[data-automation-id="title"]',
+                '[class*="atvwebplayersdk-title"]',
+                '[class*="Title-module__title"]',
+                '[data-testid="video-title"]',
+                '.webPlayerTitle'
+            ];
+            const subtitleSelectors = [
+                '.atvwebplayersdk-subtitle-text',
+                '[data-automation-id="subtitle"]',
+                '[class*="atvwebplayersdk-subtitle"]',
+                '[class*="Subtitle-module__subtitle"]'
+            ];
+
+            let titleElement = null;
+            for (const sel of titleSelectors) {
+                titleElement = querySelectorShadow(sel);
+                if (titleElement?.textContent?.trim()) break;
+            }
+
+            let subtitleElement = null;
+            for (const sel of subtitleSelectors) {
+                subtitleElement = querySelectorShadow(sel);
+                if (subtitleElement?.textContent?.trim()) break;
+            }
 
             if (titleElement) {
                 const titleText = titleElement.textContent?.trim() || '';
                 const subtitleText = subtitleElement?.textContent?.trim() || '';
 
                 if (titleText) {
-                    const episodeMatch = subtitleText.match(
-                        /Season\s+(?<season>\d+),?\s*Ep\.?\s*(?<episode>\d+)\s*(?<episodeTitle>.*)/i
-                    );
-                    if (episodeMatch?.groups) {
-                        const season = episodeMatch.groups.season;
-                        const episode = episodeMatch.groups.episode;
-                        const epTitle = episodeMatch.groups.episodeTitle?.trim() || '';
+                    const fullMatch = subtitleText.match(/(?:Season|S)\s*(\d+)[\s,:-]+(?:Ep\.?|Episode|E)\s*(\d+)[\s:|-]*(.*)/i);
+                    if (fullMatch) {
+                        const season = fullMatch[1];
+                        const episode = fullMatch[2];
+                        const epTitle = fullMatch[3]?.trim() || '';
                         return { title: `${titleText} - Season ${season} Episode ${episode}` + (epTitle ? ` - ${epTitle}` : ''), year: year };
+                    }
+                    const epMatch = subtitleText.match(/(?:Ep\.?|Episode|E)\s*(\d+)[\s:|-]*(.*)/i);
+                    if (epMatch) {
+                        const episode = epMatch[1];
+                        const epTitle = epMatch[2]?.trim() || '';
+                        return { title: `${titleText} - Episode ${episode}` + (epTitle ? ` - ${epTitle}` : ''), year: year };
                     }
                     return { title: titleText, year: year };
                 }
@@ -1011,7 +1206,7 @@ async function parseTitleWithAI(rawTitle) {
 
         // Validate required keys
         if (!result.title || typeof result.title !== 'string') {
-            console.warn('[CRUNCHFLIX] AI returned invalid title:', result);
+            console.warn('[STREAMPULSE] AI returned invalid title:', result);
             return null;
         }
 
@@ -1022,11 +1217,11 @@ async function parseTitleWithAI(rawTitle) {
             episode: result.episode !== null ? parseInt(result.episode) : null
         };
 
-        console.log(`[CRUNCHFLIX] AI parseTitle SUCCESS: "${parsed.title}" S${parsed.season} E${parsed.episode}`);
+        console.log(`[STREAMPULSE] AI parseTitle SUCCESS: "${parsed.title}" S${parsed.season} E${parsed.episode}`);
         return parsed;
 
     } catch (e) {
-        console.warn('[CRUNCHFLIX] AI parseTitle failed, falling back to regex:', e.message);
+        console.warn('[STREAMPULSE] AI parseTitle failed, falling back to regex:', e.message);
         // Destroy broken session so it's recreated next time
         aiSession = null;
         return null;
@@ -1042,7 +1237,7 @@ async function parseTitleWithDeepSeek(rawTitle) {
     if (deepseekParseCache.has(rawTitle)) {
         const cached = await deepseekParseCache.get(rawTitle);
         if (cached) {
-            console.log(`[CRUNCHFLIX] DeepSeek cache hit for: "${rawTitle}"`);
+            console.log(`[STREAMPULSE] DeepSeek cache hit for: "${rawTitle}"`);
             return cached;
         }
         // Previous attempt failed, remove and retry
@@ -1052,7 +1247,7 @@ async function parseTitleWithDeepSeek(rawTitle) {
     const storage = await chrome.storage.local.get(['deepseek_api_key']);
     const apiKey = storage.deepseek_api_key;
     if (!apiKey) {
-        console.log('[CRUNCHFLIX] DeepSeek skipped: no API key configured');
+        console.log('[STREAMPULSE] DeepSeek skipped: no API key configured');
         return null;
     }
 
@@ -1064,7 +1259,7 @@ async function parseTitleWithDeepSeek(rawTitle) {
 
 async function _callDeepSeek(rawTitle, apiKey) {
     try {
-        console.log(`[CRUNCHFLIX] DeepSeek V3.2 parsing: "${rawTitle}"...`);
+        console.log(`[STREAMPULSE] DeepSeek V3.2 parsing: "${rawTitle}"...`);
         const response = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
             headers: {
@@ -1089,14 +1284,14 @@ async function _callDeepSeek(rawTitle, apiKey) {
 
         if (!response.ok) {
             const errText = await response.text();
-            console.warn(`[CRUNCHFLIX] DeepSeek API error (${response.status}):`, errText);
+            console.warn(`[STREAMPULSE] DeepSeek API error (${response.status}):`, errText);
             return null;
         }
 
         const data = await response.json();
         const content = data.choices?.[0]?.message?.content;
         if (!content) {
-            console.warn('[CRUNCHFLIX] DeepSeek returned empty content');
+            console.warn('[STREAMPULSE] DeepSeek returned empty content');
             return null;
         }
 
@@ -1109,7 +1304,7 @@ async function _callDeepSeek(rawTitle, apiKey) {
         const result = JSON.parse(cleaned);
 
         if (!result.title || typeof result.title !== 'string') {
-            console.warn('[CRUNCHFLIX] DeepSeek returned invalid title:', result);
+            console.warn('[STREAMPULSE] DeepSeek returned invalid title:', result);
             return null;
         }
 
@@ -1120,11 +1315,11 @@ async function _callDeepSeek(rawTitle, apiKey) {
             episode: result.episode !== null ? parseInt(result.episode) : null
         };
 
-        console.log(`[CRUNCHFLIX] DeepSeek parseTitle SUCCESS: "${parsed.title}" S${parsed.season} E${parsed.episode}`);
+        console.log(`[STREAMPULSE] DeepSeek parseTitle SUCCESS: "${parsed.title}" S${parsed.season} E${parsed.episode}`);
         return parsed;
 
     } catch (e) {
-        console.warn('[CRUNCHFLIX] DeepSeek parseTitle failed:', e.message);
+        console.warn('[STREAMPULSE] DeepSeek parseTitle failed:', e.message);
         return null;
     }
 }
@@ -1132,13 +1327,13 @@ async function _callDeepSeek(rawTitle, apiKey) {
 async function parseTitle(rawTitle, platform = 'netflix') {
     if (!rawTitle) return null;
 
-    console.log(`[CRUNCHFLIX] parseTitle called with: "${rawTitle}" (platform: ${platform})`);
+    console.log(`[STREAMPULSE] parseTitle called with: "${rawTitle}" (platform: ${platform})`);
 
     // 1. Try DeepSeek API (cloud, primary) - Netflix ONLY
     if (platform === 'netflix') {
         const deepseekResult = await parseTitleWithDeepSeek(rawTitle);
         if (deepseekResult) {
-            console.log(`[CRUNCHFLIX] Using DeepSeek result: "${deepseekResult.title}"`);
+            console.log(`[STREAMPULSE] Using DeepSeek result: "${deepseekResult.title}"`);
             return deepseekResult;
         }
     }
@@ -1146,12 +1341,12 @@ async function parseTitle(rawTitle, platform = 'netflix') {
     // 2. Try Chrome AI (local, on-device Gemini Nano)
     const aiResult = await parseTitleWithAI(rawTitle);
     if (aiResult) {
-        console.log(`[CRUNCHFLIX] Using Chrome AI result: "${aiResult.title}"`);
+        console.log(`[STREAMPULSE] Using Chrome AI result: "${aiResult.title}"`);
         return aiResult;
     }
 
     // 3. Fallback to regex (deterministic, always works)
-    console.log(`[CRUNCHFLIX] Using regex fallback`);
+    console.log(`[STREAMPULSE] Using regex fallback`);
     return parseTitleRegex(rawTitle, platform);
 }
 
@@ -1162,7 +1357,8 @@ function parseTitleRegex(rawTitle, platform = 'netflix') {
     if (platform === 'crunchyroll' || platform === 'hotstar') {
         const crPatterns = [
             /^(.+?),\s+Season\s+(\d+),\s+Episode\s+(\d+)/i, // Hotstar ARIA "Show, Season 1, Episode 2"
-            /^(.+?)\s+Season\s+(\d+)\s*-\s*Episode\s+(\d+)/i, // Enhanced "Show Season X - Episode Y"
+            /^(.+?)\s*[-:]\s*(?:Season\s*)?S?(\d+)[\s\-:]*(?:Episode|Ep|E)\s*(\d+)/i, // "Show - Season 2 Episode 3", "Show - S2 E3", "Show - S2E3"
+            /^(.+?)\s+Season\s+(\d+)\s*[-:]?\s*Episode\s+(\d+)/i, // "Show Season X - Episode Y", "Show Season X Episode Y"
             /^(.+?)\s+S(\d+)\s+Episode\s+(\d+)/i,            // "Show S1 Episode 2"
             /^(.+?)\s+S(\d+)\s+E(\d+)/i,                    // "Show S1 E2"
             /^(.+?)\s*[|\-]\s*S(\d+)\s*E(\d+)/i,             // "Show | S1 E2"
@@ -1171,28 +1367,44 @@ function parseTitleRegex(rawTitle, platform = 'netflix') {
             /^(.+?)\s*\|\s*Episode\s+(\d+)/i                  // Alternative "Show | Episode X"
         ];
 
+        // Added patterns for Crunchyroll "Show - Title (2)" and "Show - Title (Part 2)"
+        crPatterns.push(/^(.+?)\s*[-:]\s*(.+?)\s*\(Part\s*(\d+)\)/i);
+        crPatterns.push(/^(.+?)\s*[-:]\s*(.+?)\s*\((\d+)\)/i);
+        crPatterns.push(/^(.+?)\s*[-:]\s*(.+?)\s+Part\s*(\d+)/i);
+
         for (const regex of crPatterns) {
             const crMatch = rawTitle.match(regex);
             if (crMatch) {
-                if (crMatch.length === 4) {
-                    return { type: 'episode', title: crMatch[1].trim(), season: parseInt(crMatch[2]), episode: parseInt(crMatch[3]) };
+                const regStr = regex.toString();
+                if (regStr.includes('Part') || regStr.includes('\((\d+)\)')) {
+                    const showName = crMatch[1].trim();
+                    const subName = crMatch[2].trim();
+                    const epNum = parseInt(crMatch[3], 10);
+                    console.log(`[STREAMPULSE] Matched Crunchyroll subtitle episode format: "${showName}" Ep ${epNum} ("${subName}")`);
+                    return { type: 'episode', title: showName, season: 1, episode: epNum, episodeTitle: `${subName} (${epNum})` };
                 }
-                return { type: 'episode', title: crMatch[1].trim(), season: null, episode: parseInt(crMatch[2]) };
+                if (crMatch.length === 4) {
+                    return { type: 'episode', title: crMatch[1].trim(), season: parseInt(crMatch[2], 10), episode: parseInt(crMatch[3], 10) };
+                }
+                return { type: 'episode', title: crMatch[1].trim(), season: 1, episode: parseInt(crMatch[2], 10) };
             }
         }
-        return { type: 'movie', title: rawTitle.trim() };
     }
 
-    // Match: "Show - Episode 8", "Show - Ep. 8", "Show - E8", "Show - S2:E8", "Show - Season 2 Episode 8"
+    // Match: "Show - Episode 8", "Show - Ep. 8", "Show - E8", "Show - S2:E8", "Show - Season 2 Episode 8", "Show Staffel 1 Folge 2"
     const patterns = [
-        // PRIORITY: "Show S2:E8" or "Show S2 E8"
-        /^(.+?)\s+S(\d+)\s*[: ]\s*E(\d+)/i,
-        // "Show - Episode 8" or "Show: Episode 8"
-        /^(.+?)\s*[-:]\s*(?:Season\s*(\d+)\s+)?Episode\s+(\d+)/i,
-        // "Show - Ep. 8" or "Show - Ep 8"
-        /^(.+?)\s*[-:]\s*(?:Season\s*(\d+)\s+)?Ep\.?\s*(\d+)/i,
-        // "Show - E8" or "Show - S2:E8"
-        /^(.+?)\s*[-:]\s*(?:S(\d+):)?E(\d+)/i,
+        // PRIORITY 1: Multi-language Season + Episode (Season, Staffel, Saison, Temporada, Stagione, Sezon, Seizoen, S, T)
+        /^(.+?)\s+[-:]?\s*(?:Season|Staffel|Saison|Temporada|Stagione|Sezon|Seizoen|Temp|St|S|T)\s*(\d+)[\s,.:\-_\|•\/\\]*(?:Episode|Episodio|Episódio|Épisode|Folge|Odcinek|Aflevering|Bölüm|Ep|E|F|Odc|Afl)\.?\s*(\d+)/i,
+
+        // PRIORITY 2: "Show S2:E8" or "Show S2 E8" or "Show S2E8" or "Show T1E2"
+        /^(.+?)\s+[-:]?\s*(?:S|T|St)\s*(\d+)\s*[:\-\s,]*E\s*(\d+)/i,
+
+        // PRIORITY 3: "Show - Episode 8", "Show: Episode 8", "Show - Folge 8", "Show - Odcinek 8"
+        /^(.+?)\s*[-:]\s*(?:(?:Season|Staffel|Saison|Temporada|Stagione|Sezon|Seizoen)\s*(\d+)\s+)?(?:Episode|Episodio|Episódio|Épisode|Folge|Odcinek|Aflevering|Bölüm|Ep|E|F|Odc)\.?\s*(\d+)/i,
+
+        // PRIORITY 4: "Show 1x02" or "Show - 1x02"
+        /^(.+?)\s+[-:]?\s*(\d+)\s*x\s*(\d+)/i,
+
         // CATCH MANGLED: "ShowS2E5", "Show E5", "ShowS2:E5"
         /^(.+?)(?:\s*[S\-:]{1,2}(\d+))?[\s\-:]*E(\d+)/i,
     ];
@@ -1209,15 +1421,16 @@ function parseTitleRegex(rawTitle, platform = 'netflix') {
             } else {
                 episode = parseInt(match[match.length - 1]);
             }
-            console.log(`[CRUNCHFLIX] parseTitleRegex SUCCESS: "${title}" S${season} E${episode} (Matched: ${regex.toString()})`);
-            return { type: 'episode', title, season: season, episode };
+            console.log(`[STREAMPULSE] parseTitleRegex SUCCESS: "${title}" S${season} E${episode} (Matched: ${regex.toString()})`);
+            return { type: 'episode', title, season: season || 1, episode };
         }
     }
 
-    console.log(`[CRUNCHFLIX] parseTitleRegex FAILED to find S/E pattern. Defaulting to movie: "${rawTitle.trim()}"`);
+    console.log(`[STREAMPULSE] parseTitleRegex FAILED to find S/E pattern. Defaulting to movie (ambiguous): "${rawTitle.trim()}"`);
     return {
         type: 'movie',
-        title: rawTitle.trim()
+        title: rawTitle.trim(),
+        isAmbiguous: true
     };
 }
 
@@ -1248,7 +1461,7 @@ function validateMatch(query, result, expectedYear) {
     if (expectedYear) {
         const resultYear = parseInt(entity.year);
         if (Math.abs(resultYear - parseInt(expectedYear)) > 1) {
-            console.log(`[CRUNCHFLIX] Rejected match: "${entity.title}" (Year mismatch: ${resultYear} vs ${expectedYear})`);
+            console.log(`[STREAMPULSE] Rejected match: "${entity.title}" (Year mismatch: ${resultYear} vs ${expectedYear})`);
             return false;
         }
     }
@@ -1263,7 +1476,7 @@ function validateMatch(query, result, expectedYear) {
         if (diff <= 6) return true; 
 
         // If it's a large difference (like "Wise Guy: David Chase and The Sopranos"), reject
-        console.log(`[CRUNCHFLIX] Rejected fuzzy match: "${entity.title}" (Title baggage/documentary detected for "${query}")`);
+        console.log(`[STREAMPULSE] Rejected fuzzy match: "${entity.title}" (Title baggage/documentary detected for "${query}")`);
         return false;
     }
 
@@ -1284,12 +1497,12 @@ async function searchTmdbAndResolve(query, type, token) {
         const clientId = storage.client_id;
 
         if (!tmdbKey) {
-            console.log("[CRUNCHFLIX] TMDB API Key not configured, skipping fallback.");
+            console.log("[STREAMPULSE] TMDB API Key not configured, skipping fallback.");
             return null;
         }
 
         const searchType = type === 'episode' ? 'tv' : 'movie';
-        console.log(`[CRUNCHFLIX] Fallback: Searching TMDB (${searchType}) for "${query}"...`);
+        console.log(`[STREAMPULSE] Fallback: Searching TMDB (${searchType}) for "${query}"...`);
         const tmdbUrl = `https://api.themoviedb.org/3/search/${searchType}?api_key=${tmdbKey}&query=${encodeURIComponent(query)}`;
         const tmdbRes = await fetch(tmdbUrl);
         const tmdbData = await tmdbRes.json();
@@ -1298,7 +1511,7 @@ async function searchTmdbAndResolve(query, type, token) {
         if (!bestTmdb) return null;
 
         const bestTitle = bestTmdb.name || bestTmdb.title;
-        console.log(`[CRUNCHFLIX] Found on TMDB: "${bestTitle}" (ID: ${bestTmdb.id}). Resolving to Trakt...`);
+        console.log(`[STREAMPULSE] Found on TMDB: "${bestTitle}" (ID: ${bestTmdb.id}). Resolving to Trakt...`);
 
         if (!clientId) return null;
 
@@ -1316,7 +1529,7 @@ async function searchTmdbAndResolve(query, type, token) {
         if (traktResults && traktResults.length > 0) {
             const resolved = traktResults[0];
             const resolvedEntity = resolved.show || resolved.movie;
-            console.log(`[CRUNCHFLIX] Resolved TMDB ID to Trakt: "${resolvedEntity?.title}"`);
+            console.log(`[STREAMPULSE] Resolved TMDB ID to Trakt: "${resolvedEntity?.title}"`);
             return resolved;
         }
     } catch (e) {
@@ -1324,6 +1537,7 @@ async function searchTmdbAndResolve(query, type, token) {
     }
     return null;
 }
+
 
 async function doSearchRaw(q, token, type = 'show', year = null) {
     const url = `${API_URL}/search/${type}?query=${encodeURIComponent(q)}&extended=full${year ? `&years=${year}` : ''}`;
@@ -1344,84 +1558,312 @@ async function doSearchRaw(q, token, type = 'show', year = null) {
         if (!res.ok) return [];
         return await res.json();
     } catch (e) {
-        console.error("[CRUNCHFLIX] Trakt Search failed:", e);
+        console.error("[STREAMPULSE] Trakt Search failed:", e);
         return [];
     }
 }
 
-async function sendScrobble(action, payload, token) {
-    const url = getSimklUrl(`/scrobble/${action}`);
+function formatHms(seconds) {
+    const s = Math.max(0, Math.floor(seconds || 0));
+    return {
+        hours: Math.floor(s / 3600),
+        minutes: Math.floor((s % 3600) / 60),
+        seconds: s % 60
+    };
+}
+
+async function sendScrobble(action, item, auth, progress = 0, historyKey = null, tabId = null, currentTime = null, duration = null) {
+    if (!auth) return;
+    const isEpisode = item.media_type === 'episode' || item.type === 'episode' || item.season != null;
+    let tmdbId = item.ids?.tmdb || item.tmdb_id || item.id;
+    const yearVal = item.year || item.traktYear || null;
+    const seriesTmdbId = item.series_tmdb_id || (isEpisode ? (item.ids?.tmdb || item.show_tmdb_id) : null);
+    const seasonNumber = item.season || 1;
+    const episodeNumber = item.episode || 1;
+    const runtime = item.runtime || null;
+
+    // Total & current duration in seconds
+    const totalSecs = (duration && duration > 0) ? Math.floor(duration) : ((runtime ? runtime * 60 : 1800) || 1800);
+    const curSecs = (currentTime !== null && currentTime !== undefined && currentTime >= 0)
+        ? Math.floor(currentTime)
+        : Math.floor((progress / 100) * totalSecs);
+
+    let method = 'Player.OnPlay';
+    if (action === 'pause') method = 'Player.OnPause';
+    else if (action === 'progress') method = 'Player.OnAVChange';
+    else if (action === 'stop') method = 'Player.OnStop';
+
+    // SESSION COLLISION FIX: If switching shows, cleanly close the old show session first
+    if (action !== 'stop' && activeKodiSession && activeKodiSession.historyKey && activeKodiSession.historyKey !== historyKey) {
+        console.log(`[STREAMPULSE] Switching media from "${activeKodiSession.item?.showtitle || activeKodiSession.item?.title}" to "${item.title}". Closing old session.`);
+        try {
+            await sendKodiStop(activeKodiSession.item, auth, false);
+        } catch (e) {
+            console.warn("[STREAMPULSE] Could not stop previous Kodi session:", e);
+        }
+        activeKodiSession = null;
+    }
+
+    // Use a fixed session ID for browser extension scrobbling:
+    // This guarantees Scrob has AT MOST ONE active stream from the browser.
+    const sessionId = 'browser';
+
+    const kodiItem = {
+        type: isEpisode ? 'episode' : 'movie',
+        id: sessionId,
+        uniqueid: tmdbId ? { tmdb: String(tmdbId) } : {}
+    };
+
+    if (isEpisode) {
+        kodiItem.title = item.episodeTitle || item.title || '';
+        kodiItem.showtitle = item.title || item.showTitle || '';
+        kodiItem.season = parseInt(seasonNumber, 10) || 1;
+        kodiItem.episode = parseInt(episodeNumber, 10) || 1;
+        if (yearVal) kodiItem.year = parseInt(yearVal, 10);
+    } else {
+        kodiItem.title = item.title || '';
+        if (yearVal) kodiItem.year = parseInt(yearVal, 10);
+    }
+
+    const payload = {
+        method: method,
+        session_id: sessionId,
+        item: kodiItem,
+        player: {
+            time: formatHms(curSecs),
+            totaltime: formatHms(totalSecs)
+        }
+    };
+
+    const isEnded = action === 'stop' && progress >= 80;
+    if (action === 'stop') {
+        payload.params = { data: { end: isEnded } };
+        activeKodiSession = null;
+    } else {
+        activeKodiSession = { item: kodiItem, auth, historyKey, tabId, progress };
+    }
+
+    let webhookUrl = getScrobUrl('/webhooks/kodi', auth.url);
+    if (auth.apiKey) {
+        webhookUrl += (webhookUrl.includes('?') ? '&' : '?') + 'api_key=' + encodeURIComponent(auth.apiKey);
+    }
+    const headers = getScrobHeaders(auth.token, auth.apiKey);
+
+    console.log(`[STREAMPULSE] Sending Scrobble Webhook (${method}): "${kodiItem.showtitle || kodiItem.title}" S${kodiItem.season || ''}E${kodiItem.episode || ''} (${progress}%)`);
+
     try {
-        console.log(`[CRUNCHFLIX] Sending ${action.toUpperCase()} to Simkl...`, payload);
-        const res = await fetch(url, {
+        const res = await fetch(webhookUrl, {
             method: 'POST',
-            headers: getSimklHeaders(token),
+            headers: headers,
             body: JSON.stringify(payload)
         });
-
-        if (!res.ok) {
-            const errText = await res.text();
-            console.error(`[CRUNCHFLIX] Simkl ${action} failed (${res.status}):`, errText);
+        if (res.ok) {
+            console.log(`[STREAMPULSE] Scrobble Webhook SUCCESS (${method})`);
         } else {
-            const json = await res.json();
-            console.log(`[CRUNCHFLIX] Simkl ${action} success:`, json);
+            console.warn(`[STREAMPULSE] Scrobble Webhook status ${res.status}:`, await res.text());
         }
     } catch (e) {
-        console.error(`[CRUNCHFLIX] Scrobble ${action} exception:`, e);
+        console.error(`[STREAMPULSE] Scrobble Webhook network error:`, e);
+    }
+
+    // Safety net: If user completed the video, also mark watched via /history endpoint
+    if (isEnded && tmdbId) {
+        try {
+            console.log(`[STREAMPULSE] Completing media in Scrob history: "${kodiItem.showtitle || kodiItem.title}"`);
+            const histUrl = getScrobUrl('/history', auth.url);
+            await fetch(histUrl, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({
+                    tmdb_id: parseInt(tmdbId, 10),
+                    media_type: isEpisode ? "episode" : "movie",
+                    watched_at: new Date().toISOString(),
+                    completed: true,
+                    series_tmdb_id: seriesTmdbId ? parseInt(seriesTmdbId, 10) : null,
+                    season_number: isEpisode ? parseInt(seasonNumber, 10) : null,
+                    episode_number: isEpisode ? parseInt(episodeNumber, 10) : null
+                })
+            }).catch(() => {});
+        } catch (e) {}
     }
 }
 
-async function doSearchRaw(q, token, type = 'tv', year = null) {
-    let simklType = 'tv';
-    if (type === 'movie') simklType = 'movie';
-    else if (type === 'anime') simklType = 'anime';
 
-    let url = getSimklUrl(`/search/${simklType}?q=${encodeURIComponent(q)}`);
+async function sendKodiStop(kodiItem, auth, ended = false) {
+    if (!auth) return;
+    let webhookUrl = getScrobUrl('/webhooks/kodi', auth.url);
+    if (auth.apiKey) {
+        webhookUrl += (webhookUrl.includes('?') ? '&' : '?') + 'api_key=' + encodeURIComponent(auth.apiKey);
+    }
+    const headers = getScrobHeaders(auth.token, auth.apiKey);
+    const itemPayload = kodiItem || { id: 'browser', type: 'episode', season: 1, episode: 1, title: 'Stop' };
+    const stopPayload = {
+        method: 'Player.OnStop',
+        session_id: 'browser',
+        item: itemPayload,
+        params: { data: { end: ended } }
+    };
+    try {
+        await fetch(webhookUrl, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(stopPayload)
+        });
+        console.log(`[STREAMPULSE] Sent Player.OnStop for browser session`);
+    } catch (e) {}
+}
+
+async function doSearchRaw(q, auth, type = 'tv', year = null, tmdbKey = null) {
+    if (!auth) return [];
+    let scrobType = 'series';
+    if (type === 'movie') scrobType = 'movie';
+
+    let url = getScrobUrl(`/media/search?q=${encodeURIComponent(q)}&type=${scrobType}&in_library=false`, auth.url);
     if (year) url += `&year=${year}`;
 
     try {
         const res = await fetch(url, {
-            headers: getSimklHeaders(token)
+            headers: getScrobHeaders(auth.token, auth.apiKey)
         });
-        if (!res.ok) return [];
-        const json = await res.json();
-        return Array.isArray(json) ? json : [];
+        if (res.ok) {
+            const json = await res.json();
+            const results = json.results || (Array.isArray(json) ? json : []);
+            if (results.length > 0) {
+                return results.map(item => ({
+                    id: item.id,
+                    tmdb_id: item.tmdb_id || item.id,
+                    title: item.title || item.name,
+                    year: item.year || (item.release_date || item.first_air_date || '').substring(0, 4),
+                    media_type: item.type === 'movie' || scrobType === 'movie' ? 'movie' : 'show',
+                    type: item.type === 'movie' || scrobType === 'movie' ? 'movie' : 'tv',
+                    poster_path: item.poster_path,
+                    poster: item.poster_path,
+                    backdrop_path: item.backdrop_path,
+                    backdrop: item.backdrop_path,
+                    overview: item.overview,
+                    runtime: item.runtime,
+                    rating: item.vote_average || item.rating,
+                    genres: item.genres || [],
+                    ids: {
+                        tmdb: item.tmdb_id || item.id
+                    }
+                }));
+            }
+        }
     } catch (e) {
-        console.error("[CRUNCHFLIX] Simkl Search failed:", e);
-        return [];
+        console.warn("[STREAMPULSE] Scrob search request error:", e);
     }
+
+    if (tmdbKey) {
+        try {
+            const tmdbType = scrobType === 'movie' ? 'movie' : 'tv';
+            let tmdbUrl = `https://api.themoviedb.org/3/search/${tmdbType}?query=${encodeURIComponent(q)}&api_key=${tmdbKey}`;
+            if (year) tmdbUrl += `&year=${year}`;
+            const tmdbRes = await fetch(tmdbUrl);
+            if (tmdbRes.ok) {
+                const tmdbData = await tmdbRes.json();
+                return (tmdbData.results || []).map(item => ({
+                    id: item.id,
+                    tmdb_id: item.id,
+                    title: item.title || item.name,
+                    year: (item.release_date || item.first_air_date || '').substring(0, 4),
+                    media_type: scrobType === 'movie' ? 'movie' : 'show',
+                    type: scrobType === 'movie' ? 'movie' : 'tv',
+                    poster_path: item.poster_path,
+                    poster: item.poster_path,
+                    backdrop_path: item.backdrop_path,
+                    backdrop: item.backdrop_path,
+                    overview: item.overview,
+                    ids: { tmdb: item.id }
+                }));
+            }
+        } catch (e) {
+            console.warn("[STREAMPULSE] Direct TMDB fallback search failed:", e);
+        }
+    }
+
+    return [];
 }
 
-async function searchSimkl(query, type, token, year = null) {
-    const searchType = type === 'episode' ? 'tv' : 'movie';
+async function searchScrob(query, type, auth, year = null, platform = '', isAmbiguous = false, tmdbKey = null) {
+    let searchType = type === 'episode' ? 'tv' : 'movie';
     let bestResult = null;
 
     const searchPart = sanitizeShowTitle(query);
-    console.log(`[CRUNCHFLIX] Searching Simkl: "${searchPart}" (${searchType})`);
-    let results = await doSearchRaw(searchPart, token, searchType, year);
+    console.log(`[STREAMPULSE] Searching Scrob: "${searchPart}" (${searchType}, ambiguous: ${isAmbiguous})`);
+
+    if (type === 'movie' || isAmbiguous) {
+        const [movieResults, tvResults] = await Promise.all([
+            doSearchRaw(searchPart, auth, 'movie', year, tmdbKey),
+            doSearchRaw(searchPart, auth, 'tv', year, tmdbKey)
+        ]);
+
+        const normQuery = searchPart.toLowerCase().trim();
+        const exactTv = (tvResults || []).find(r => r.title && r.title.toLowerCase().trim() === normQuery);
+        const exactMovie = (movieResults || []).find(r => r.title && r.title.toLowerCase().trim() === normQuery);
+
+        if (exactTv && exactMovie) {
+            if (type === 'episode') {
+                return { show: exactTv, mediaType: 'show', ...exactTv };
+            } else {
+                return { movie: exactMovie, mediaType: 'movie', ...exactMovie };
+            }
+        } else if (exactTv && type !== 'movie') {
+            return { show: exactTv, mediaType: 'show', ...exactTv };
+        } else if (exactMovie) {
+            return { movie: exactMovie, mediaType: 'movie', ...exactMovie };
+        }
+
+        if (tvResults && tvResults.length > 0 && type !== 'movie') {
+            return { show: tvResults[0], mediaType: 'show', ...tvResults[0] };
+        }
+        if (movieResults && movieResults.length > 0) {
+            return { movie: movieResults[0], mediaType: 'movie', ...movieResults[0] };
+        }
+    }
+
+    let results = await doSearchRaw(searchPart, auth, searchType, year, tmdbKey);
 
     if (results && results.length > 0) {
         for (const result of results) {
             const isValid = validateMatch(searchPart, { show: result, movie: result }, year);
-            if (isValid) return { show: result, movie: result, ...result };
+            if (isValid) return { show: result, movie: result, mediaType: searchType, ...result };
         }
-        bestResult = { show: results[0], movie: results[0], ...results[0] };
+        bestResult = { show: results[0], movie: results[0], mediaType: searchType, ...results[0] };
     }
 
     const cleaned = searchPart.replace(/[^\w\s]/gi, ' ').replace(/\s+/g, ' ').trim();
     if (cleaned !== searchPart) {
-        results = await doSearchRaw(cleaned, token, searchType, year);
+        results = await doSearchRaw(cleaned, auth, searchType, year, tmdbKey);
         if (results && results.length > 0) {
             for (const result of results) {
                 if (validateMatch(cleaned, { show: result, movie: result }, year)) {
-                    return { show: result, movie: result, ...result };
+                    return { show: result, movie: result, mediaType: searchType, ...result };
                 }
             }
-            if (!bestResult) bestResult = { show: results[0], movie: results[0], ...results[0] };
+            if (!bestResult) bestResult = { show: results[0], movie: results[0], mediaType: searchType, ...results[0] };
+        }
+    }
+
+    if (!bestResult && searchPart.includes(' - ')) {
+        const parts = searchPart.split(/\s+-\s+/);
+        const candidateShow = parts[0].trim();
+        const candidateSubtitle = parts.slice(1).join(' - ').trim();
+        console.log(`[STREAMPULSE] Trying split title fallback for show: "${candidateShow}" (Episode: "${candidateSubtitle}")`);
+        const fallbackResults = await doSearchRaw(candidateShow, auth, 'tv', year, tmdbKey);
+        if (fallbackResults && fallbackResults.length > 0) {
+            const found = fallbackResults[0];
+            return { show: found, movie: found, mediaType: 'show', episodeTitle: candidateSubtitle, ...found };
         }
     }
 
     return bestResult;
+}
+
+async function searchSimkl(query, type, token, year = null, platform = '', isAmbiguous = false) {
+    const storage = await chrome.storage.local.get(['scrob_url', 'scrob_token', 'scrob_api_key', 'simkl_token', 'tmdb_api_key']);
+    const auth = getScrobAuth(storage);
+    return searchScrob(query, type, auth, year, platform, isAmbiguous, storage.tmdb_api_key);
 }
 /**
  * Proactive Recovery: Fetches/Scrapes Netflix auth tokens using UTS methodology.
@@ -1429,7 +1871,7 @@ async function searchSimkl(query, type, token, year = null) {
  */
 async function fetchAndScrapeNetflixAuth() {
     try {
-        console.log("[CRUNCHFLIX] [UTS RECOVERY] Initiating session extraction...");
+        console.log("[STREAMPULSE] [UTS RECOVERY] Initiating session extraction...");
 
         // 1. Primary Method: Injection into MAIN world of an existing Netflix tab
         const netflixTabs = await chrome.tabs.query({ url: "*://*.netflix.com/*" });
@@ -1455,16 +1897,16 @@ async function fetchAndScrapeNetflixAuth() {
 
                 const session = results[0]?.result;
                 if (session && session.authUrl) {
-                    console.log("[CRUNCHFLIX] [UTS RECOVERY] Successfully extracted session via MAIN world injection.");
+                    console.log("[STREAMPULSE] [UTS RECOVERY] Successfully extracted session via MAIN world injection.");
                     return await updateSessionCache(session.authUrl, session.guid, session.buildId);
                 }
             } catch (injectionError) {
-                console.warn("[CRUNCHFLIX] Injection attempt failed:", injectionError);
+                console.warn("[STREAMPULSE] Injection attempt failed:", injectionError);
             }
         }
 
         // 2. Fallback Method: Regex Scraping from /settings/viewed/ (UTS Style)
-        console.log("[CRUNCHFLIX] [UTS RECOVERY] Falling back to regex scraping...");
+        console.log("[STREAMPULSE] [UTS RECOVERY] Falling back to regex scraping...");
         const response = await fetch("https://www.netflix.com/settings/viewed/", { credentials: 'include' });
         const html = await response.text();
 
@@ -1492,13 +1934,13 @@ async function fetchAndScrapeNetflixAuth() {
             const guid = guidMatch ? unescape(guidMatch[1]) : null;
             const buildId = buildIdMatch ? unescape(buildIdMatch[1]) : null;
 
-            console.log("[CRUNCHFLIX] [UTS RECOVERY] Successfully extracted session via regex scraping.");
+            console.log("[STREAMPULSE] [UTS RECOVERY] Successfully extracted session via regex scraping.");
             return await updateSessionCache(authUrl, guid, buildId);
         }
 
         throw new Error("UTS extraction failed. Bootstrap context not found.");
     } catch (e) {
-        console.error("[CRUNCHFLIX] UTS Recovery Layer Failed:", e);
+        console.error("[STREAMPULSE] UTS Recovery Layer Failed:", e);
         return null;
     }
 }
@@ -1511,7 +1953,7 @@ async function updateSessionCache(authUrl, guid, buildId) {
 
     // Clear stale memory to prevent 403 loops
     shaktiKeys.clear();
-    console.log("[CRUNCHFLIX] Memory cache cleared.");
+    console.log("[STREAMPULSE] Memory cache cleared.");
 
     // Update memory for all active netflix tabs
     const tabs = await chrome.tabs.query({ url: "*://*.netflix.com/*" });
@@ -1521,7 +1963,7 @@ async function updateSessionCache(authUrl, guid, buildId) {
     await chrome.storage.local.set({ shakti: tokens });
 
     const display = authUrl.length > 10 ? `${authUrl.substring(0, 5)}...${authUrl.substring(authUrl.length - 5)}` : authUrl;
-    console.log(`[CRUNCHFLIX] Handshake restored. Token: ${display}`);
+    console.log(`[STREAMPULSE] Handshake restored. Token: ${display}`);
     return tokens;
 }
 
@@ -1529,7 +1971,7 @@ async function updateSessionCache(authUrl, guid, buildId) {
 
 async function fetchNetflixHistory(sendResponse, retries = 0) {
     if (isSyncing && retries === 0) {
-        console.warn("[CRUNCHFLIX] Sync already in progress. Ignoring request.");
+        console.warn("[STREAMPULSE] Sync already in progress. Ignoring request.");
         return;
     }
 
@@ -1544,7 +1986,7 @@ async function fetchNetflixHistory(sendResponse, retries = 0) {
 
     try {
         if (!activeToken && retries < 2) {
-            console.log("[CRUNCHFLIX] Token missing. Initiating retry/recovery...");
+            console.log("[STREAMPULSE] Token missing. Initiating retry/recovery...");
             const recovered = await fetchAndScrapeNetflixAuth();
             if (recovered) return fetchNetflixHistory(sendResponse, retries + 1);
         }
@@ -1562,7 +2004,7 @@ async function fetchNetflixHistory(sendResponse, retries = 0) {
             'x-netflix.request.routing': '{"path":"/nq/aui/endpoint/%5E1.0.0-web/pathEvaluator","control_tag":"auinqweb"}'
         };
 
-        console.log(`[CRUNCHFLIX] Fetching History via AUI (Retry: ${retries})`);
+        console.log(`[STREAMPULSE] Fetching History via AUI (Retry: ${retries})`);
         const res = await fetch(url, {
             method: 'POST',
             credentials: 'include',
@@ -1572,7 +2014,7 @@ async function fetchNetflixHistory(sendResponse, retries = 0) {
 
         if (!res.ok) {
             if (retries < 2 && (res.status === 403 || res.status === 401)) {
-                console.warn(`[CRUNCHFLIX] AUI Auth Fail (${res.status}). Purging and recovering...`);
+                console.warn(`[STREAMPULSE] AUI Auth Fail (${res.status}). Purging and recovering...`);
                 shaktiKeys.clear();
                 await chrome.storage.local.remove('shakti');
                 const recovered = await fetchAndScrapeNetflixAuth();
@@ -1585,7 +2027,7 @@ async function fetchNetflixHistory(sendResponse, retries = 0) {
         const rawItems = data?.jsonGraph?.aui?.viewingActivity?.value?.viewedItems || [];
 
         if (rawItems.length > 0) {
-            console.log("[CRUNCHFLIX] Raw AUI Item Sample:", JSON.stringify(rawItems[0], null, 2));
+            console.log("[STREAMPULSE] Raw AUI Item Sample:", JSON.stringify(rawItems[0], null, 2));
         }
 
         // Normalize AUI items to extension's standard format
@@ -1642,13 +2084,13 @@ async function fetchNetflixHistory(sendResponse, retries = 0) {
             return progressPercent >= 0.70;
         });
 
-        console.log(`[CRUNCHFLIX] AUI Sync Success! Found ${items.length} items. Filtered to ${highFidelityItems.length} (70% watch threshold).`);
+        console.log(`[STREAMPULSE] AUI Sync Success! Found ${items.length} items. Filtered to ${highFidelityItems.length} (70% watch threshold).`);
         isSyncing = false;
         sendResponse({ success: true, items: highFidelityItems });
 
     } catch (e) {
         isSyncing = false;
-        console.error("[CRUNCHFLIX] UTS History fetch failed:", e);
+        console.error("[STREAMPULSE] UTS History fetch failed:", e);
         sendResponse({ success: false, error: e.message });
     }
 }
@@ -1693,128 +2135,163 @@ async function fetchNetflixProgress(ids) {
         }
         return progress;
     } catch (e) {
-        console.warn("[CRUNCHFLIX] Progress fetch failed:", e);
+        console.warn("[STREAMPULSE] Progress fetch failed:", e);
         return {};
     }
 }
 
 
-async function bulkCheckSimkl(items, sendResponse) {
+async function bulkCheckScrob(items, sendResponse) {
     try {
-        const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token']);
-        const token = getSimklToken(storage);
-        if (!token) throw new Error("Simkl not connected.");
+        const storage = await chrome.storage.local.get(['scrob_url', 'scrob_token', 'scrob_api_key', 'simkl_token', 'trakt_token']);
+        const auth = getScrobAuth(storage);
+        if (!auth) throw new Error("Scrob not connected. Please set your API Key or connect in Options.");
 
-        const url = getSimklUrl('/sync/activities');
-        const res = await fetch(url, {
-            headers: getSimklHeaders(token)
+        const baseUrl = getScrobUrl('', auth.url);
+        const headers = getScrobHeaders(auth);
+
+        let watchedEntries = [];
+        let page = 1;
+        const maxPages = 5; // fetch up to 500 recent items
+        while (page <= maxPages) {
+            const res = await fetch(`${baseUrl}/history?page=${page}&page_size=100`, { headers });
+            if (!res.ok) break;
+            const data = await res.json();
+            const results = data.results || [];
+            watchedEntries.push(...results);
+            if (page >= (data.total_pages || 1) || results.length === 0) break;
+            page++;
+        }
+
+        const watchedTitles = new Set();
+        const watchedTmdbIds = new Set();
+        watchedEntries.forEach(entry => {
+            const media = entry.media || {};
+            if (media.title) watchedTitles.add(media.title.toLowerCase().trim());
+            if (media.tmdb_id) watchedTmdbIds.add(String(media.tmdb_id));
+            if (media.show?.title) watchedTitles.add(media.show.title.toLowerCase().trim());
         });
 
-        if (!res.ok) throw new Error("Could not fetch Simkl activities.");
-        const activities = await res.json();
+        const syncedItems = (items || []).map(item => {
+            const cleanTitle = (item.seriesTitle || item.videoTitle || "").toLowerCase().trim();
+            const isSynced = watchedTitles.has(cleanTitle);
+            return { ...item, isSynced };
+        });
 
-        const syncedItems = (items || []).map(item => ({ ...item, isSynced: false }));
-        sendResponse({ success: true, items: syncedItems, activities });
+        sendResponse({ success: true, items: syncedItems, activities: { total_count: watchedEntries.length } });
     } catch (e) {
-        console.error("[CRUNCHFLIX] Bulk check error:", e);
+        console.error("[STREAMPULSE] Bulk check error:", e);
         sendResponse({ success: false, error: e.message });
     }
 }
+const bulkCheckSimkl = bulkCheckScrob;
 
-async function bulkSyncToSimkl(items, sendResponse) {
+async function bulkSyncToScrob(items, sendResponse) {
     try {
-        const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token']);
-        const token = getSimklToken(storage);
-        if (!token) throw new Error("Simkl not connected.");
+        const storage = await chrome.storage.local.get(['scrob_url', 'scrob_token', 'scrob_api_key', 'simkl_token', 'trakt_token', 'tmdb_api_key']);
+        const auth = getScrobAuth(storage);
+        if (!auth) throw new Error("Scrob not connected. Please set your API Key or connect in Options.");
 
-        const showsToSync = [];
-        const moviesToSync = [];
+        const baseUrl = getScrobUrl('', auth.url);
+        const headers = getScrobHeaders(auth);
+        headers['Content-Type'] = 'application/json';
+
         let completed = 0;
+        let syncedCount = 0;
         const total = (items || []).length;
 
         for (const item of items) {
             const isEpisode = !!item.seriesTitle;
-            const watchedAt = new Date(item.watchedDate).toISOString();
+            const titleToSearch = isEpisode ? item.seriesTitle : item.videoTitle;
+            const watchedAt = item.watchedDate ? new Date(item.watchedDate).toISOString() : new Date().toISOString();
 
-            if (isEpisode) {
-                showsToSync.push({
-                    title: item.seriesTitle,
-                    ids: { netflix: item.movieID },
-                    seasons: [
-                        {
-                            number: item.seasonNumber || 1,
-                            episodes: [
-                                {
-                                    number: item.episodeNumber || 1,
-                                    watched_at: watchedAt
-                                }
-                            ]
+            try {
+                let tmdbId = item.tmdb_id || item.tmdbId;
+                let showTmdbId = null;
+
+                if (!tmdbId && titleToSearch) {
+                    const searchRes = await doSearchRaw(titleToSearch, auth, isEpisode ? 'tv' : 'movie', null, storage.tmdb_api_key);
+                    if (searchRes && searchRes.length > 0) {
+                        const first = searchRes[0];
+                        if (isEpisode) {
+                            showTmdbId = first.tmdb_id || first.id;
+                            tmdbId = showTmdbId;
+                        } else {
+                            tmdbId = first.tmdb_id || first.id;
                         }
-                    ]
-                });
-            } else {
-                moviesToSync.push({
-                    title: item.videoTitle,
-                    ids: { netflix: item.movieID },
-                    watched_at: watchedAt
-                });
+                    }
+                }
+
+                if (tmdbId) {
+                    const payload = {
+                        tmdb_id: parseInt(tmdbId, 10),
+                        media_type: isEpisode ? "episode" : "movie",
+                        watched_at: watchedAt,
+                        completed: true
+                    };
+                    if (isEpisode) {
+                        payload.series_tmdb_id = parseInt(showTmdbId || tmdbId, 10);
+                        payload.season_number = item.seasonNumber || 1;
+                        payload.episode_number = item.episodeNumber || 1;
+                    }
+
+                    const res = await fetch(`${baseUrl}/history`, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify(payload)
+                    });
+                    if (res.ok) syncedCount++;
+                }
+            } catch (err) {
+                console.warn("[STREAMPULSE] Error syncing item:", item.videoTitle, err);
             }
 
             completed++;
             const progress = Math.round((completed / total) * 100);
             chrome.runtime.sendMessage({ action: "syncProgress", progress }).catch(() => { });
-            await new Promise(r => setTimeout(r, 20));
+            await new Promise(r => setTimeout(r, 40));
         }
 
-        const syncPayload = {};
-        if (showsToSync.length > 0) syncPayload.shows = showsToSync;
-        if (moviesToSync.length > 0) syncPayload.movies = moviesToSync;
-
-        const res = await fetch(getSimklUrl('/sync/history'), {
-            method: 'POST',
-            headers: getSimklHeaders(token),
-            body: JSON.stringify(syncPayload)
-        });
-
-        if (!res.ok) throw new Error(`Simkl Sync failed: ${await res.text()}`);
-
-        const result = await res.json();
-        sendResponse({ success: true, added: result.added || result });
+        sendResponse({ success: true, added: { movies: syncedCount, episodes: syncedCount } });
     } catch (e) {
-        console.error("[CRUNCHFLIX] Bulk sync error:", e);
+        console.error("[STREAMPULSE] Bulk sync error:", e);
         sendResponse({ success: false, error: e.message });
     }
 }
+const bulkSyncToSimkl = bulkSyncToScrob;
 
-async function resolveSimklUrl(url, sendResponse) {
+async function resolveScrobUrl(url, sendResponse) {
     try {
-        const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token']);
-        const token = getSimklToken(storage);
-        if (!token) throw new Error("Simkl not connected.");
+        const storage = await chrome.storage.local.get(['scrob_url', 'scrob_token', 'scrob_api_key', 'simkl_token', 'trakt_token', 'tmdb_api_key']);
+        const auth = getScrobAuth(storage);
+        if (!auth) throw new Error("Scrob not connected.");
 
-        const showMatch = url.match(/shows\/([^/]+)/) || url.match(/tv\/([^/]+)/);
-        const movieMatch = url.match(/movies\/([^/]+)/);
+        const showMatch = url.match(/shows?\/([^/]+)/) || url.match(/tv\/([^/]+)/);
+        const movieMatch = url.match(/movies?\/([^/]+)/);
         const slug = (showMatch || movieMatch)?.[1];
         if (!slug) throw new Error("Invalid URL.");
 
         const type = showMatch ? 'tv' : 'movie';
-        const results = await doSearchRaw(slug, token, type);
+        const cleanQuery = decodeURIComponent(slug).replace(/[-_]/g, ' ');
+        const results = await doSearchRaw(cleanQuery, auth, type, null, storage.tmdb_api_key);
         sendResponse({ success: true, results });
     } catch (e) {
-        console.error("[CRUNCHFLIX] URL Resolution error:", e);
+        console.error("[STREAMPULSE] URL Resolution error:", e);
         sendResponse({ success: false, error: e.message });
     }
 }
+const resolveSimklUrl = resolveScrobUrl;
 
-async function handleSimklSearch(query, type, sendResponse) {
+async function handleScrobSearch(query, type, sendResponse) {
     try {
-        const storage = await chrome.storage.local.get(['simkl_token', 'trakt_token']);
-        const token = getSimklToken(storage);
-        if (!token) throw new Error("Simkl not connected.");
+        const storage = await chrome.storage.local.get(['scrob_url', 'scrob_token', 'scrob_api_key', 'simkl_token', 'trakt_token', 'tmdb_api_key']);
+        const auth = getScrobAuth(storage);
+        if (!auth) throw new Error("Scrob not connected.");
 
-        const results = await doSearchRaw(query, token, type);
+        const results = await doSearchRaw(query, auth, type, null, storage.tmdb_api_key);
         sendResponse({ success: true, results });
     } catch (e) {
         sendResponse({ success: false, error: e.message });
     }
 }
+const handleSimklSearch = handleScrobSearch;

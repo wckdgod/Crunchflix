@@ -3,7 +3,66 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
+    updateServerStatus();
+    initScrobbleNowBtn();
 });
+
+function formatSeconds(seconds) {
+    if (!seconds || isNaN(seconds) || seconds < 0) return '00:00';
+    const total = Math.floor(seconds);
+    const hrs = Math.floor(total / 3600);
+    const mins = Math.floor((total % 3600) / 60);
+    const secs = total % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    if (hrs > 0) {
+        return `${hrs}:${pad(mins)}:${pad(secs)}`;
+    }
+    return `${pad(mins)}:${pad(secs)}`;
+}
+
+function updateServerStatus() {
+    const el = document.getElementById('server-status-text');
+    if (!el) return;
+    chrome.storage.local.get(['scrob_url'], (res) => {
+        const url = res.scrob_url || (typeof DEFAULT_SCROB_URL !== 'undefined' ? DEFAULT_SCROB_URL : 'http://localhost:7330');
+        try {
+            const parsed = new URL(url);
+            el.textContent = `${parsed.host} - Scrob`;
+            el.title = `Connected to ${url}`;
+        } catch (e) {
+            el.textContent = `${url} - Scrob`;
+        }
+    });
+}
+
+function initScrobbleNowBtn() {
+    const scrobbleNowBtn = document.getElementById('scrobbleNowBtn');
+    if (!scrobbleNowBtn) return;
+    scrobbleNowBtn.addEventListener('click', () => {
+        chrome.storage.local.get(['nowPlaying'], (res) => {
+            const np = res.nowPlaying;
+            if (np && (np.title || np.rawTitle)) {
+                const manualProgress = Math.max(np.progress || 0, 85);
+                chrome.runtime.sendMessage({
+                    action: 'scrobble',
+                    payload: {
+                        ...np,
+                        status: 'playing',
+                        progress: manualProgress
+                    }
+                });
+
+                scrobbleNowBtn.classList.add('success');
+                const label = scrobbleNowBtn.querySelector('span:last-child');
+                if (label) label.textContent = 'Scrobbled!';
+                setTimeout(() => {
+                    scrobbleNowBtn.classList.remove('success');
+                    if (label) label.textContent = 'Scrobble Now';
+                }, 1600);
+            }
+        });
+    });
+}
 
 const connectBtn = document.getElementById('authBtn');
 if (connectBtn) connectBtn.addEventListener('click', openAuthWindow);
@@ -25,6 +84,17 @@ if (settingsBtnConnected) {
     });
 }
 
+const openScrobBtn = document.getElementById('openScrobBtn');
+if (openScrobBtn) {
+    openScrobBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        chrome.storage.local.get(['scrob_url'], (res) => {
+            const url = res.scrob_url || 'http://localhost:7330';
+            chrome.tabs.create({ url });
+        });
+    });
+}
+
 const openHistoryBtn = document.getElementById('openHistoryBtn');
 if (openHistoryBtn) {
     openHistoryBtn.addEventListener('click', (e) => {
@@ -34,8 +104,8 @@ if (openHistoryBtn) {
 }
 
 function checkAuth() {
-    chrome.storage.local.get(['simkl_token', 'trakt_token', 'nowPlaying'], (result) => {
-        if (result.simkl_token || result.trakt_token) {
+    chrome.storage.local.get(['scrob_token', 'scrob_api_key', 'simkl_token', 'trakt_token', 'nowPlaying'], (result) => {
+        if (result.scrob_token || result.scrob_api_key || result.simkl_token || result.trakt_token) {
             showConnected(result.nowPlaying);
         } else {
             showDisconnected();
@@ -45,12 +115,14 @@ function checkAuth() {
     // Listen for updates
     chrome.storage.onChanged.addListener((changes, namespace) => {
         if (namespace === 'local') {
-            if (changes.simkl_token || changes.trakt_token) {
-                // If token appears, we are connected!
+            if (changes.scrob_token || changes.scrob_api_key || changes.simkl_token || changes.trakt_token) {
                 checkAuth();
             }
             if (changes.nowPlaying) {
                 updateNowPlaying(changes.nowPlaying.newValue);
+            }
+            if (changes.scrob_url) {
+                updateServerStatus();
             }
         }
     });
@@ -59,6 +131,12 @@ function checkAuth() {
         if (message.action === "LIVE_PROGRESS") {
             const progressBar = document.getElementById('play-progress-bar');
             if (progressBar) progressBar.style.width = `${message.progress}%`;
+            const progressPctLabel = document.getElementById('progress-pct-label');
+            if (progressPctLabel) progressPctLabel.textContent = `${Math.round(message.progress)}%`;
+            const progressTimeLabel = document.getElementById('progress-time-label');
+            if (progressTimeLabel && message.currentTime !== undefined && message.duration) {
+                progressTimeLabel.textContent = `${formatSeconds(message.currentTime)} / ${formatSeconds(message.duration)}`;
+            }
         }
     });
 }
@@ -120,17 +198,56 @@ function updateNowPlaying(nowPlaying) {
         if (status === 'paused') {
             statusText = 'PAUSED';
             iconHtml = `<svg class="status-icon pause-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+        } else if (status === 'resolving') {
+            statusText = 'RESOLVING...';
+            badgeClass = 'status-badge resolving';
+            iconHtml = `<svg class="status-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>`;
         } else if (status === 'stopped' || status === 'not_found' || status === 'parse_error') {
             statusText = status === 'stopped' ? 'STOPPED' : 'NOT FOUND';
             badgeClass = 'status-badge paused';
             iconHtml = `<svg class="status-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>`;
         } else {
             statusText = 'SCROBBLING';
-            iconHtml = `<svg class="status-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+            badgeClass = 'status-badge scrobbling';
+            iconHtml = `<div class="visualizer-wave"><span class="visualizer-bar"></span><span class="visualizer-bar"></span><span class="visualizer-bar"></span></div>`;
         }
 
         npStatus.className = badgeClass;
         npStatus.innerHTML = `${iconHtml}<span class="status-text">${statusText}</span>`;
+
+        // Platform Badge
+        const platformBadge = document.getElementById('platform-badge');
+        const platformName = document.getElementById('platform-name');
+        if (platformBadge && platformName) {
+            if (!nowPlaying.platform) {
+                platformName.textContent = 'DETECTING...';
+                platformBadge.className = 'platform-badge platform-unknown';
+            } else {
+                const rawPlat = nowPlaying.platform.toLowerCase();
+                let platName = 'Netflix';
+                let platClass = 'platform-badge platform-netflix';
+
+                if (rawPlat.includes('hotstar')) {
+                    platName = 'JioHotstar';
+                    platClass = 'platform-badge platform-hotstar';
+                } else if (rawPlat.includes('prime') || rawPlat.includes('amazon')) {
+                    platName = 'Prime Video';
+                    platClass = 'platform-badge platform-amazon-prime';
+                } else if (rawPlat.includes('crunchyroll')) {
+                    platName = 'Crunchyroll';
+                    platClass = 'platform-badge platform-crunchyroll';
+                } else if (rawPlat.includes('netflix')) {
+                    platName = 'Netflix';
+                    platClass = 'platform-badge platform-netflix';
+                } else {
+                    platName = nowPlaying.platform.toUpperCase();
+                    platClass = 'platform-badge platform-unknown';
+                }
+
+                platformName.textContent = platName;
+                platformBadge.className = platClass;
+            }
+        }
 
         // Metadata with defaults for bullet points mapping
         let yearText = (nowPlaying.traktYear || nowPlaying.year) ? (nowPlaying.traktYear || nowPlaying.year) : '';
@@ -145,6 +262,17 @@ function updateNowPlaying(nowPlaying) {
             metaGenres.textContent = (nowPlaying.genres && nowPlaying.genres.length > 0) ? nowPlaying.genres[0] : (nowPlaying.type === 'movie' ? 'Movie' : 'TV Show');
         }
 
+        // Episode Title
+        const npEpName = document.getElementById('episode-name');
+        if (npEpName) {
+            if (nowPlaying.episodeTitle) {
+                npEpName.textContent = `Ep. "${nowPlaying.episodeTitle}"`;
+                npEpName.classList.remove('hidden');
+            } else {
+                npEpName.classList.add('hidden');
+            }
+        }
+
         // Synopsis
         if (npSynopsis) {
             if (nowPlaying.synopsis) {
@@ -155,27 +283,59 @@ function updateNowPlaying(nowPlaying) {
             }
         }
 
-        // Progress Bar styling
+        // Progress Bar & Telemetry styling
+        const progressPct = nowPlaying.progress || 0;
         if (progressBar) {
-            const progressPct = nowPlaying.progress || 0;
             progressBar.style.width = `${progressPct}%`;
         }
 
-        // Poster and Color Extraction
-        if (nowPlaying.image && npImage.src !== nowPlaying.image) {
-            npImage.style.opacity = '0';
-            if (npBgImage) npBgImage.style.opacity = '0';
+        const progressPctLabel = document.getElementById('progress-pct-label');
+        if (progressPctLabel) {
+            progressPctLabel.textContent = `${Math.round(progressPct)}%`;
+        }
 
-            npImage.onload = () => {
-                npImage.style.opacity = '1';
-                extractDominantColor(npImage);
-            };
-            npImage.src = nowPlaying.image;
-            if (npBgImage) {
-                npBgImage.onload = () => npBgImage.style.opacity = '1';
-                npBgImage.src = nowPlaying.image;
+        const progressTimeLabel = document.getElementById('progress-time-label');
+        if (progressTimeLabel) {
+            if (nowPlaying.currentTime !== null && nowPlaying.currentTime !== undefined && nowPlaying.duration) {
+                progressTimeLabel.textContent = `${formatSeconds(nowPlaying.currentTime)} / ${formatSeconds(nowPlaying.duration)}`;
+            } else if (nowPlaying.duration) {
+                const estSecs = Math.floor((progressPct / 100) * nowPlaying.duration);
+                progressTimeLabel.textContent = `${formatSeconds(estSecs)} / ${formatSeconds(nowPlaying.duration)}`;
+            } else {
+                progressTimeLabel.textContent = `${Math.round(progressPct)}% Completed`;
             }
-        } else if (!nowPlaying.image) {
+        }
+
+        // Poster and Backdrop Extraction
+        const imgUrl = nowPlaying.backdrop || nowPlaying.image;
+        if (imgUrl) {
+            if (npImage.src !== imgUrl) {
+                npImage.style.opacity = '0';
+                if (npBgImage) npBgImage.style.opacity = '0';
+
+                npImage.onload = () => {
+                    npImage.style.opacity = '1';
+                    extractDominantColor(npImage);
+                };
+                npImage.onerror = () => {
+                    // Fallback to poster if backdrop failed
+                    if (nowPlaying.image && npImage.src !== nowPlaying.image) {
+                        npImage.src = nowPlaying.image;
+                    } else {
+                        npImage.style.opacity = '0';
+                    }
+                };
+                npImage.src = imgUrl;
+
+                if (npBgImage) {
+                    npBgImage.onload = () => { npBgImage.style.opacity = '1'; };
+                    npBgImage.src = imgUrl;
+                }
+            } else {
+                npImage.style.opacity = '1';
+                if (npBgImage) npBgImage.style.opacity = '1';
+            }
+        } else {
             npImage.style.opacity = '0';
             if (npBgImage) npBgImage.style.opacity = '0';
             resetDominantColor();
@@ -192,6 +352,10 @@ function updateNowPlaying(nowPlaying) {
         if (metaGenres) metaGenres.textContent = '';
         if (npSynopsis) npSynopsis.classList.add('hidden');
         if (progressBar) progressBar.style.width = '0%';
+        const progressPctLabel = document.getElementById('progress-pct-label');
+        if (progressPctLabel) progressPctLabel.textContent = '0%';
+        const progressTimeLabel = document.getElementById('progress-time-label');
+        if (progressTimeLabel) progressTimeLabel.textContent = '00:00 / 00:00';
         npImage.style.opacity = '0';
         if (npBgImage) npBgImage.style.opacity = '0';
         resetDominantColor();
@@ -266,17 +430,56 @@ function resetDominantColor() {
     document.documentElement.style.removeProperty('--dynamic-glow');
 }
 
-// Parallax Title Effect
-document.addEventListener('mousemove', (e) => {
+// Antigravity Parallax 3D Tilt Effect with Smooth Damping
+let targetTiltX = 0;
+let targetTiltY = 0;
+let currentTiltX = 0;
+let currentTiltY = 0;
+let tiltRaf = null;
+
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+if (!prefersReducedMotion) {
+    document.addEventListener('mousemove', (e) => {
+        const layer = document.querySelector('.app-content-layer');
+        if (!layer) return;
+
+        // Calculate smooth rotation (-4.5deg to +4.5deg max)
+        const centerX = window.innerWidth / 2;
+        const centerY = window.innerHeight / 2;
+        targetTiltX = ((e.clientY - centerY) / centerY) * -4.5;
+        targetTiltY = ((e.clientX - centerX) / centerX) * 4.5;
+
+        if (!tiltRaf) {
+            tiltRaf = requestAnimationFrame(updateTiltLoop);
+        }
+    });
+
+    document.addEventListener('mouseleave', () => {
+        targetTiltX = 0;
+        targetTiltY = 0;
+    });
+}
+
+function updateTiltLoop() {
     const layer = document.querySelector('.app-content-layer');
-    if (!layer) return;
+    if (!layer) {
+        tiltRaf = null;
+        return;
+    }
 
-    // Calculate rotation based on center of screen
-    const x = (window.innerWidth / 2 - e.pageX) / 25; // dampening factor
-    const y = (window.innerHeight / 2 - e.pageY) / 25;
+    currentTiltX += (targetTiltX - currentTiltX) * 0.12;
+    currentTiltY += (targetTiltY - currentTiltY) * 0.12;
 
-    layer.style.transform = `rotateX(${y}deg) rotateY(${-x}deg)`;
-});
+    layer.style.transform = `rotateX(${currentTiltX.toFixed(2)}deg) rotateY(${currentTiltY.toFixed(2)}deg)`;
+
+    if (Math.abs(targetTiltX - currentTiltX) > 0.01 || Math.abs(targetTiltY - currentTiltY) > 0.01) {
+        tiltRaf = requestAnimationFrame(updateTiltLoop);
+    } else {
+        layer.style.transform = `rotateX(${targetTiltX.toFixed(2)}deg) rotateY(${targetTiltY.toFixed(2)}deg)`;
+        tiltRaf = null;
+    }
+}
 
 
 function showDisconnected() {
@@ -290,7 +493,7 @@ function showDisconnected() {
 }
 
 function logout() {
-    chrome.storage.local.remove(['simkl_token', 'trakt_token', 'nowPlaying'], () => {
+    chrome.storage.local.remove(['scrob_token', 'scrob_api_key', 'scrob_refresh_token', 'simkl_token', 'trakt_token', 'nowPlaying'], () => {
         showDisconnected();
     });
 }
@@ -344,52 +547,92 @@ if (saveEpFixBtn) {
         const statusDiv = document.getElementById('fix-ep-status');
 
         if (isNaN(s) || isNaN(e)) {
-            if (statusDiv) statusDiv.textContent = "Please enter valid numbers.";
+            if (statusDiv) {
+                statusDiv.textContent = "Please enter valid numbers.";
+                statusDiv.style.color = "#ff5252";
+            }
             return;
         }
 
         chrome.storage.local.get(['nowPlaying', 'corrections'], async (res) => {
             const nowPlaying = res.nowPlaying;
-            if (!nowPlaying || !nowPlaying.title) {
-                if (statusDiv) statusDiv.textContent = "Error: Nothing currently playing.";
+            if (!nowPlaying || (!nowPlaying.title && !nowPlaying.rawTitle)) {
+                if (statusDiv) {
+                    statusDiv.textContent = "Error: Nothing currently playing.";
+                    statusDiv.style.color = "#ff5252";
+                }
                 return;
             }
 
-            // 1. EXTRACT ORG SEASON AND EPISODE FROM BACKGROUND STATE
-            const cleanTitle = nowPlaying.title; // The title is already sanitized by background.js 
-            let orgS = nowPlaying.season || 1; // Default to 1 if missing
-            let orgE = nowPlaying.episode;
-
-            if (!orgE) {
-                if (statusDiv) statusDiv.textContent = "Error: Could not identify current episode number from playing title.";
-                return;
+            // Extract best available show title
+            let cleanTitle = (nowPlaying.traktTitle || nowPlaying.title || nowPlaying.rawTitle || "").trim();
+            // If cleanTitle has trailing episode name (e.g., "Show - Subtitle"), strip down to show name
+            if (cleanTitle.includes(' - ')) {
+                cleanTitle = cleanTitle.split(/\s*-\s*/)[0].trim();
             }
 
             const corrections = res.corrections || {};
-
             if (!corrections[cleanTitle]) {
                 corrections[cleanTitle] = { data: null, offsets: {} };
             }
 
-            const mappingKey = `${orgS}_${orgE}`;
-            corrections[cleanTitle].offsets = corrections[cleanTitle].offsets || {};
-            corrections[cleanTitle].offsets[mappingKey] = { s: s, e: e };
+            let orgS = nowPlaying.season || 1;
+            let orgE = nowPlaying.episode;
+
+            if (orgE) {
+                const mappingKey = `${orgS}_${orgE}`;
+                corrections[cleanTitle].offsets = corrections[cleanTitle].offsets || {};
+                corrections[cleanTitle].offsets[mappingKey] = { s: s, e: e };
+            }
+
+            // Always save explicit manual episode mapping as well (works even if orgE was never detected!)
+            corrections[cleanTitle].manualEpisode = { s: s, e: e };
+            if (nowPlaying.rawTitle) {
+                corrections[cleanTitle].rawMapping = corrections[cleanTitle].rawMapping || {};
+                corrections[cleanTitle].rawMapping[nowPlaying.rawTitle] = { s: s, e: e };
+            }
 
             await chrome.storage.local.set({ corrections });
 
             chrome.runtime.sendMessage({ action: "clearCache", payload: { title: cleanTitle } });
 
             if (statusDiv) {
-                statusDiv.textContent = "Episode mapping saved!";
+                statusDiv.textContent = `Applied! Set to S${s} E${e}`;
                 statusDiv.style.color = "#4CAF50";
             }
 
-            const scrobbleTitleFormat = `${cleanTitle} - Season ${orgS} Episode ${orgE}`;
-            chrome.runtime.sendMessage({ action: "scrobble", payload: { title: scrobbleTitleFormat, status: 'playing', progress: 1 } });
+            // Format scrobble title with the user's explicit season and episode
+            const scrobbleTitleFormat = `${cleanTitle} - Season ${s} Episode ${e}`;
+            chrome.runtime.sendMessage({
+                action: "scrobble",
+                payload: {
+                    title: scrobbleTitleFormat,
+                    showTitle: cleanTitle,
+                    season: s,
+                    episode: e,
+                    type: 'episode',
+                    status: 'playing',
+                    progress: nowPlaying.progress || 1,
+                    platform: nowPlaying.platform
+                }
+            });
+
+            // Optimistically update nowPlaying UI so user sees immediate feedback
+            const updatedNowPlaying = {
+                ...nowPlaying,
+                status: 'scrobbling',
+                type: 'episode',
+                season: s,
+                episode: e,
+                title: cleanTitle
+            };
+            chrome.storage.local.set({ nowPlaying: updatedNowPlaying });
+            updateNowPlaying(updatedNowPlaying);
 
             setTimeout(() => {
                 document.getElementById('fix-episode-section').classList.add('hidden');
-            }, 1500);
+                if (statusDiv) statusDiv.textContent = '';
+            }, 1200);
         });
     });
 }
@@ -413,7 +656,7 @@ if (fixSearchBtn && fixInput) {
         const statusDiv = document.getElementById('fix-status');
 
         if (statusDiv) {
-            statusDiv.textContent = "Searching Simkl...";
+            statusDiv.textContent = "Searching Scrob...";
             statusDiv.style.color = "#aaa";
         }
         if (resultsDiv) {
@@ -422,7 +665,7 @@ if (fixSearchBtn && fixInput) {
         }
 
         chrome.runtime.sendMessage({
-            action: "searchSimklForPopup",
+            action: "searchScrobForPopup",
             payload: { query: query, type: 'tv,movie' }
         }, (response) => {
             if (response && response.success) {

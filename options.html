@@ -1,147 +1,318 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CRUNCHFLIX Settings</title>
+    <title>Scrobblr - Settings</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #1a1a1a;
-            color: #ffffff;
-            padding: 20px;
-            max-width: 600px;
-            margin: 0 auto;
+        :root {
+            --bg-obsidian: #0e0e10;
+            --surface-dim: #131315;
+            --surface-container-low: #1c1b1d;
+            --surface-container: #201f22;
+            --surface-container-high: #2a2a2c;
+            --surface-container-highest: #353437;
+            
+            --primary: #d0bcff;
+            --primary-electric: #8b5cf6;
+            --primary-dim: #a078ff;
+            --primary-glow: rgba(208, 188, 255, 0.35);
+            --primary-glow-subtle: rgba(139, 92, 246, 0.2);
+            
+            --secondary: #4edea3;
+            --secondary-glow-subtle: rgba(16, 185, 129, 0.18);
+            
+            --on-surface: #e5e1e4;
+            --on-surface-variant: #cbc3d7;
+            --on-surface-muted: #958ea0;
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-border-focus: rgba(208, 188, 255, 0.4);
         }
 
-        h1 {
-            border-bottom: 1px solid #333;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-obsidian);
+            color: var(--on-surface);
+            padding: 36px 20px;
+            max-width: 640px;
+            margin: 0 auto;
+            min-height: 100vh;
+            background: radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.12) 0%, transparent 60%),
+                        radial-gradient(circle at 100% 100%, rgba(78, 222, 163, 0.05) 0%, transparent 50%),
+                        var(--bg-obsidian);
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 20px;
+            margin-bottom: 28px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .brand-title {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #ffffff;
+        }
+
+        .brand-spark {
+            color: var(--primary);
+            filter: drop-shadow(0 0 10px var(--primary-glow));
+            font-size: 1.3rem;
+        }
+
+        .badge {
+            font-size: 0.72rem;
+            background: rgba(139, 92, 246, 0.25);
+            color: var(--primary);
+            border: 1px solid rgba(208, 188, 255, 0.3);
+            padding: 3px 10px;
+            border-radius: 9999px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .card {
+            background: rgba(28, 27, 33, 0.65);
+            backdrop-filter: blur(28px);
+            -webkit-backdrop-filter: blur(28px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 18px;
+            padding: 26px;
+            margin-bottom: 24px;
+            box-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.6), 0 0 30px rgba(139, 92, 246, 0.08);
+            transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .card:hover {
+            box-shadow: 0 26px 56px -10px rgba(0, 0, 0, 0.7), 0 0 36px rgba(139, 92, 246, 0.16);
+            border-color: rgba(208, 188, 255, 0.25);
         }
 
         .form-group {
-            margin-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .form-group:last-child {
+            margin-bottom: 0;
         }
 
         label {
             display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
+            margin-bottom: 6px;
+            font-weight: 700;
+            font-size: 0.88rem;
+            color: var(--on-surface);
+            letter-spacing: 0.01em;
         }
 
         input[type="text"],
         input[type="password"] {
             width: 100%;
-            padding: 8px;
-            background-color: #333;
-            border: 1px solid #444;
+            padding: 11px 14px;
+            background-color: rgba(14, 14, 16, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             color: #fff;
-            border-radius: 4px;
-            box-sizing: border-box;
+            border-radius: 8px;
+            font-size: 0.92rem;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+
+        input[type="password"] {
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 2px;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow-subtle);
         }
 
         .help-text {
-            font-size: 0.85em;
-            color: #aaa;
-            margin-top: 5px;
+            font-size: 0.8rem;
+            color: var(--on-surface-muted);
+            margin-top: 6px;
+            line-height: 1.45;
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
         }
 
         button {
-            background-color: #e50914;
-            /* Netflix Red-ish */
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
+            padding: 11px 22px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 1em;
-            transition: background-color 0.2s;
+            font-size: 0.92rem;
+            font-weight: 700;
+            font-family: inherit;
+            transition: all 0.2s ease;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
 
-        button:hover {
-            background-color: #b20710;
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-dim), var(--primary-electric));
+            color: white;
+            box-shadow: 0 4px 16px var(--primary-glow-subtle);
+        }
+
+        .btn-primary:hover {
+            filter: brightness(1.15);
+            box-shadow: 0 6px 20px var(--primary-glow);
+            transform: translateY(-1px);
+        }
+
+        .btn-primary:active {
+            transform: translateY(1px) scale(0.98);
+        }
+
+        .btn-secondary {
+            background-color: rgba(255, 255, 255, 0.08);
+            color: var(--on-surface);
+            border: 1px solid var(--glass-border);
+        }
+
+        .btn-secondary:hover {
+            background-color: rgba(255, 255, 255, 0.14);
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary:active {
+            transform: translateY(1px) scale(0.98);
         }
 
         .status {
-            margin-top: 10px;
-            padding: 10px;
-            border-radius: 4px;
+            margin-top: 18px;
+            padding: 12px 16px;
+            border-radius: 8px;
             display: none;
+            font-size: 0.88rem;
+            line-height: 1.45;
+            animation: fadeIn 0.25s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .success {
-            background-color: #2e7d32;
-            color: white;
+            background-color: var(--secondary-glow-subtle);
+            border: 1px solid rgba(78, 222, 163, 0.4);
+            color: var(--secondary);
         }
 
         .error {
-            background-color: #c62828;
-            color: white;
+            background-color: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            color: #ff8888;
         }
 
         a {
-            color: #e50914;
+            color: var(--primary);
             text-decoration: none;
         }
 
         a:hover {
             text-decoration: underline;
         }
+
+        code {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85em;
+            color: var(--primary);
+        }
     </style>
 </head>
 
 <body>
-    <h1>CRUNCHFLIX Settings</h1>
-
-    <div class="form-group">
-        <label for="clientId">Simkl Client ID</label>
-        <input type="text" id="clientId" placeholder="Enter your Simkl Client ID">
-        <div class="help-text">
-            Create an API app in <a href="https://simkl.com/settings/developer/" target="_blank"
-                rel="noopener noreferrer">Simkl Developer Settings</a>.
-            Use <code>urn:ietf:wg:oauth:2.0:oob</code> as the Redirect URI.
+    <div class="header">
+        <div class="brand-title">
+            <span class="brand-spark">✦</span>
+            <span>SCROBBLR</span>
         </div>
+        <span class="badge">Obsidian Iris • Scrob</span>
     </div>
 
-    <div class="form-group">
-        <label for="clientSecret">Simkl Client Secret</label>
-        <input type="password" id="clientSecret" placeholder="Enter your Simkl Client Secret">
-    </div>
-
-    <div class="form-group">
-        <label for="simklToken">Simkl Access Token (Optional Manual Entry)</label>
-        <input type="password" id="simklToken" placeholder="Paste your Simkl Access Token if authorized">
-        <div class="help-text">
-            Saved automatically when connecting via PIN. Paste token here for manual authentication.
+    <div class="card">
+        <div class="form-group">
+            <label for="scrobUrl">Scrob Server Base URL</label>
+            <input type="text" id="scrobUrl" placeholder="http://localhost:7330">
+            <div class="help-text">
+                The URL of your self-hosted <a href="https://github.com/ellite/scrob" target="_blank" rel="noopener noreferrer">Scrob</a> server (default: <code>http://localhost:7330</code>).
+            </div>
         </div>
-    </div>
 
-    <div class="form-group">
-        <label for="tmdbApiKey">TMDB API Key</label>
-        <input type="text" id="tmdbApiKey" placeholder="Enter your TMDB API Key (Optional)">
-        <div class="help-text">
-            Get an API Key from <a href="https://www.themoviedb.org/settings/api" target="_blank"
-                rel="noopener noreferrer">The Movie
-                Database</a>.
-            Used for fetching better poster images.
+        <div class="form-group">
+            <label for="scrobApiKey">Scrob API Key</label>
+            <input type="password" id="scrobApiKey" placeholder="Paste your Scrob API Key">
+            <div class="help-text">
+                Find or create your API key in Scrob under <b>Settings &rarr; Account / API Key</b>. Direct API key authentication is recommended for self-hosted setups.
+            </div>
         </div>
-    </div>
 
-    <div class="form-group">
-        <label for="deepseekApiKey">DeepSeek API Key</label>
-        <input type="password" id="deepseekApiKey" placeholder="Enter your DeepSeek API Key (Optional)">
-        <div class="help-text">
-            Get an API key from <a href="https://platform.deepseek.com/api_keys" target="_blank"
-                rel="noopener noreferrer">DeepSeek Platform</a>.
-            Used for AI-powered title parsing (cloud fallback).
+        <div class="form-group">
+            <label for="scrobToken">Scrob Access Token (OAuth / Link Flow)</label>
+            <input type="password" id="scrobToken" placeholder="Auto-populated via Scrob Link flow">
+            <div class="help-text">
+                Automatically populated when authenticating through the <b>Connect Account</b> (RFC 8628 Device Link) flow.
+            </div>
         </div>
+
+        <div class="form-group">
+            <label for="tmdbApiKey">TMDB API Key (Optional)</label>
+            <input type="text" id="tmdbApiKey" placeholder="Enter your TMDB API Key">
+            <div class="help-text">
+                From <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener noreferrer">The Movie Database</a>. Used as client-side fallback for metadata & poster images.
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="deepseekApiKey">DeepSeek API Key (Optional)</label>
+            <input type="password" id="deepseekApiKey" placeholder="Enter your DeepSeek API Key">
+            <div class="help-text">
+                From <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer">DeepSeek Platform</a>. Used for AI-powered title & season resolution on non-standard stream titles.
+            </div>
+        </div>
+
+        <div class="actions">
+            <button id="saveBtn" class="btn-primary">Save Settings</button>
+            <button id="testBtn" class="btn-secondary">Test Connection</button>
+        </div>
+        <div id="status" class="status"></div>
     </div>
 
-    <button id="saveBtn">Save Settings</button>
-    <div id="status" class="status"></div>
-
+    <script src="config.js"></script>
     <script src="options.js"></script>
 </body>
 

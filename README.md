@@ -1,10 +1,10 @@
-# CRUNCHFLIX 🎬
+# STREAMPULSE 🎬
 
 ![Version](https://img.shields.io/badge/version-2.0.4-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Chrome%20%7C%20Edge%20%7C%20Brave-blue.svg)
 ![Simkl API](https://img.shields.io/badge/Scrobbler-Simkl-green.svg)
 
-**CRUNCHFLIX** is a powerful, privacy-focused browser extension that automatically scrobbles your watch history from **Netflix**, **Crunchyroll**, **Jio Hotstar**, and **Prime Video** directly to [Simkl](https://simkl.com).
+**STREAMPULSE** is a powerful, privacy-focused browser extension that automatically scrobbles your watch history from **Netflix**, **Crunchyroll**, **Jio Hotstar**, and **Prime Video** directly to [Simkl](https://simkl.com).
 
 ---
 
@@ -28,7 +28,7 @@ Since this is a developer build, load it as an **Unpacked Extension** in Chrome,
 
 1. **Download / Clone the Repository**:
    ```bash
-   git clone https://github.com/wckdgod/Crunchflix.git
+   git clone https://github.com/wckdgod/StreamPulse.git
    ```
 2. **Open Extensions Manager**:
    - **Chrome**: Navigate to `chrome://extensions`
@@ -36,13 +36,13 @@ Since this is a developer build, load it as an **Unpacked Extension** in Chrome,
 3. **Enable Developer Mode**:
    - Toggle the **Developer mode** switch in the top-right corner.
 4. **Load Unpacked Extension**:
-   - Click **Load unpacked** and select the `Crunchflix` repository directory (where `manifest.json` is located).
+   - Click **Load unpacked** and select the `StreamPulse` repository directory (where `manifest.json` is located).
 
 ---
 
 ## ⚙️ Configuration & Connection
 
-1. Open the **CRUNCHFLIX** extension popup in your browser toolbar.
+1. Open the **STREAMPULSE** extension popup in your browser toolbar.
 2. Click **Connect to Simkl**.
 3. A window will display your unique 5-character **PIN Code**.
 4. Open [simkl.com/pin](https://simkl.com/pin), enter the PIN code, and authorize your app.
@@ -55,7 +55,7 @@ Since this is a developer build, load it as an **Unpacked Extension** in Chrome,
 ### Service Worker Inspector
 If you ever want to view live background service worker logs in Edge or Chrome:
 - Go to `edge://serviceworker-internals` (or `chrome://serviceworker-internals`).
-- Search for `CRUNCHFLIX` and click **Inspect**.
+- Search for `STREAMPULSE` and click **Inspect**.
 - Alternatively, right-click the extension toolbar icon and click **Inspect popup**.
 
 ### Extension Updates / Reloads

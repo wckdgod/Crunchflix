@@ -3,7 +3,7 @@
 // to intercept internal API calls and session metadata.
 
 (function () {
-    console.log("[CRUNCHFLIX] Network Interceptor Active.");
+    console.log("[STREAMPULSE] Network Interceptor Active.");
 
     const extractFromUrl = (url) => {
         try {

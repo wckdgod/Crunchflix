@@ -83,7 +83,7 @@ function handleSimklUrl(url) {
 
             document.getElementById('search-results-mini').style.display = 'none';
         } else {
-            console.error("[CRUNCHFLIX] Resolution failed:", response?.error);
+            console.error("[STREAMPULSE] Resolution failed:", response?.error);
             resultsContainer.innerHTML = `<p style="padding: 10px; font-size:12px; color: #e50914;">Link resolution failed: ${response?.error || 'Unknown error'}</p>`;
         }
     });
@@ -191,19 +191,23 @@ function hideFixModal() {
 }
 
 async function performSimklSearch(query) {
+    return performScrobSearch(query);
+}
+
+async function performScrobSearch(query) {
     const resultsContainer = document.getElementById('search-results-mini');
-    resultsContainer.innerHTML = '<p style="padding: 10px; font-size:12px;">Searching Simkl...</p>';
+    resultsContainer.innerHTML = '<p style="padding: 10px; font-size:12px;">Searching Scrob...</p>';
     resultsContainer.style.display = 'block';
 
     const searchType = currentFixItem?.seriesTitle ? 'tv' : 'movie';
-    chrome.runtime.sendMessage({ action: "performSimklSearch", query, type: searchType }, (response) => {
+    chrome.runtime.sendMessage({ action: "performScrobSearch", query, type: searchType }, (response) => {
         if (response && response.success && response.results.length > 0) {
             resultsContainer.innerHTML = '';
             response.results.forEach(res => {
                 const item = res.show || res.movie || res;
                 const div = document.createElement('div');
                 div.className = 'search-item-mini';
-                const typeLabel = (res.type || item.type || 'TV').toUpperCase();
+                const typeLabel = (res.type || item.type || (res.media_type) || 'TV').toUpperCase();
                 div.innerHTML = `
                     <div class="search-item-info">
                         <span class="item-title-mini">${item.title} (${item.year || ''})</span>
@@ -265,10 +269,10 @@ function startSync() {
     }
 
     showLoader();
-    chrome.runtime.sendMessage({ action: "bulkSyncToSimkl", items: selected }, (response) => {
+    chrome.runtime.sendMessage({ action: "bulkSyncToScrob", items: selected }, (response) => {
         hideLoader();
         if (response && response.success) {
-            alert(`Successfully synced items to Simkl!`);
+            alert(`Successfully synced items to Scrob!`);
             fetchHistory(); // Refresh
         } else {
             alert("Sync failed: " + (response?.error || "Unknown error"));

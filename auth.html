@@ -4,116 +4,204 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CRUNCHFLIX - Authentication</title>
+    <title>StreamPulse - Connect to Scrob</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 20px;
-            background-color: #1a1a1a;
+            background-color: #141419;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             color: #ffffff;
+            box-sizing: border-box;
         }
 
         .container {
-            background: #333;
-            padding: 40px 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            background: rgba(28, 27, 34, 0.75);
+            backdrop-filter: blur(28px);
+            -webkit-backdrop-filter: blur(28px);
+            padding: 38px 32px;
+            border-radius: 18px;
+            box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.75), 0 0 32px rgba(139, 92, 246, 0.15);
             text-align: center;
-            max-width: 400px;
+            max-width: 440px;
             width: 100%;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .brand-badge {
+            display: inline-block;
+            background: rgba(255, 82, 82, 0.15);
+            color: #ff5252;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
         }
 
         h2 {
             margin-top: 0;
-            color: #e50914;
+            margin-bottom: 8px;
+            color: #ffffff;
+            font-size: 1.4rem;
         }
 
         p {
             line-height: 1.5;
             margin-bottom: 20px;
-            color: #ddd;
+            color: #a0a0b2;
+            font-size: 0.95rem;
+        }
+
+        .server-input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .server-input-group label {
+            display: block;
+            font-size: 0.85rem;
+            color: #aaaab8;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        .server-input-group input {
+            width: 100%;
+            padding: 10px 12px;
+            background: #252533;
+            border: 1px solid #3a3a4d;
+            border-radius: 6px;
+            color: #fff;
+            box-sizing: border-box;
+            font-size: 0.95rem;
         }
 
         .code {
             font-size: 32px;
-            letter-spacing: 5px;
-            font-weight: 700;
-            color: #fff;
+            letter-spacing: 4px;
+            font-weight: 800;
+            color: #ff5252;
             margin: 20px 0;
             font-family: monospace;
-            background: #444;
-            padding: 10px;
-            border-radius: 4px;
+            background: #252533;
+            padding: 14px;
+            border-radius: 8px;
+            border: 1px dashed #44445c;
+            user-select: all;
         }
 
-        a {
-            color: #e50914;
+        .btn {
+            background-color: #ff5252;
+            color: white;
+            border: none;
+            padding: 11px 22px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: background-color 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            background-color: #e04040;
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: #aaaab8;
+            border: 1px solid #3a3a4d;
+            margin-top: 12px;
+        }
+
+        .btn-outline:hover {
+            background: #282838;
+            color: #fff;
+        }
+
+        a.link-btn {
+            color: #ff5252;
             text-decoration: none;
             font-weight: 600;
+            word-break: break-all;
         }
 
-        a:hover {
+        a.link-btn:hover {
             text-decoration: underline;
         }
 
         #auth-content,
-        #error {
+        #error,
+        #setup-step {
             display: none;
         }
 
         #error {
             color: #ff5252;
-            margin-top: 10px;
+            background: rgba(255, 82, 82, 0.1);
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-size: 0.9rem;
         }
 
         .spinner {
-            border: 4px solid #444;
-            border-top: 4px solid #e50914;
+            border: 3px solid #333344;
+            border-top: 3px solid #ff5252;
             border-radius: 50%;
-            width: 30px;
-            height: 30px;
+            width: 28px;
+            height: 28px;
             animation: spin 1s linear infinite;
             margin: 20px auto;
         }
 
         @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 
 <body>
     <div class="container">
-        <h2>CRUNCHFLIX</h2>
+        <div class="brand-badge">✦ STREAMPULSE</div>
+        <h2>Connect to Scrob</h2>
+
+        <!-- Step 1: Server URL confirmation -->
+        <div id="setup-step">
+            <p>Enter the URL of your self-hosted Scrob instance:</p>
+            <div class="server-input-group">
+                <label for="serverUrlInput">Scrob Server URL</label>
+                <input type="text" id="serverUrlInput" value="http://localhost:7330" placeholder="http://localhost:7330">
+            </div>
+            <button id="startAuthBtn" class="btn">Get Authorization Code</button>
+        </div>
 
         <div id="loading">
             <div class="spinner"></div>
-            <p>Connecting to Simkl...</p>
+            <p id="loading-text">Requesting authorization from Scrob...</p>
         </div>
 
+        <!-- Step 2: User code & approval link -->
         <div id="auth-content">
-            <p>1. Visit the activation page:</p>
-            <p><a id="verificationLink" href="#" target="_blank">...</a></p>
-
-            <p>2. Enter this code:</p>
-            <div id="userCode" class="code">...</div>
-
-            <p style="font-size: 12px; color: #888;">This window will close automatically when done.</p>
+            <p>Go to your Scrob authorization page and enter the code below:</p>
+            <div id="userCode" class="code">----</div>
+            <p>
+                <a id="verificationLink" class="btn" target="_blank" rel="noopener noreferrer">Authorize in Scrob</a>
+            </p>
+            <p style="font-size: 0.82rem; color: #888899;">Waiting for approval... (Window will close automatically once authorized)</p>
         </div>
 
         <div id="error"></div>
     </div>
+
     <script src="config.js"></script>
     <script src="auth.js"></script>
 </body>

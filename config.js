@@ -1,21 +1,47 @@
-const API_URL = "https://api.simkl.com";
-const CLIENT_ID = "a63b63d85af0e02d4cfc791d87c881f710693ecc86d280fc98f8618f8f1faaad";
-const CLIENT_SECRET = "[REDACTED_SECRET]";
-const APP_NAME = "crunchflix";
-const APP_VERSION = "2.1.1";
+const DEFAULT_SCROB_URL = "http://localhost:7330";
+const DEFAULT_SCROB_API_KEY = "";
+const APP_NAME = "StreamPulse";
+const APP_VERSION = "3.2.0";
 
-function getSimklUrl(endpoint) {
-    const separator = endpoint.includes('?') ? '&' : '?';
-    return `${API_URL}${endpoint}${separator}client_id=${CLIENT_ID}&app-name=${APP_NAME}&app-version=${APP_VERSION}`;
+// Cross-browser compatibility polyfill for chrome / browser namespaces
+if (typeof chrome === 'undefined' && typeof browser !== 'undefined') {
+    globalThis.chrome = browser;
+}
+if (typeof browser === 'undefined' && typeof chrome !== 'undefined') {
+    globalThis.browser = chrome;
 }
 
-function getSimklHeaders(token = null) {
+function normalizeBaseUrl(url) {
+    if (!url) return DEFAULT_SCROB_URL;
+    return url.replace(/\/+$/, '');
+}
+
+function getScrobUrl(endpoint, baseUrl = DEFAULT_SCROB_URL) {
+    let cleanBase = normalizeBaseUrl(baseUrl);
+    let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
+    // Strip trailing /api/proxy from base if user specified it
+    if (cleanBase.endsWith('/api/proxy')) {
+        cleanBase = cleanBase.substring(0, cleanBase.length - 10);
+    }
+
+    // Scrob self-hosted routes all backend API requests through /api/proxy/
+    if (!cleanEndpoint.startsWith('/api/proxy/')) {
+        cleanEndpoint = `/api/proxy${cleanEndpoint}`;
+    }
+    return `${cleanBase}${cleanEndpoint}`;
+}
+
+function getScrobHeaders(token = null, apiKey = null) {
     const headers = {
         'Content-Type': 'application/json',
         'User-Agent': `${APP_NAME}/${APP_VERSION}`
     };
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
+    }
+    if (apiKey) {
+        headers['X-Api-Key'] = apiKey;
     }
     return headers;
 }

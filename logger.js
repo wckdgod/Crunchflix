@@ -43,8 +43,8 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`[CRUNCHFLIX] AI Remote Logger active on port ${PORT}`);
-    console.log(`[CRUNCHFLIX] Writing to: ${LOG_FILE}`);
+    console.log(`[STREAMPULSE] AI Remote Logger active on port ${PORT}`);
+    console.log(`[STREAMPULSE] Writing to: ${LOG_FILE}`);
     
     // Clear log file on start to avoid confusion with old logs
     fs.writeFileSync(LOG_FILE, `--- LOG STARTED AT ${new Date().toISOString()} ---\n`);
