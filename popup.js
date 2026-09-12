@@ -160,6 +160,14 @@ function showConnected(nowPlaying) {
     if (codeSection) codeSection.classList.add('hidden'); // Hide Code
     if (connectedSection) connectedSection.classList.remove('hidden'); // Show Connected
 
+    // Antigravity GSAP Staggered Entrance
+    if (typeof gsap !== 'undefined') {
+        gsap.fromTo(['.popup-header', '.hero-banner', '.telemetry-card', '.actions-grid', '.popup-footer'], 
+            { opacity: 0, y: 15, scale: 0.98 },
+            { opacity: 1, y: 0, scale: 1, duration: 0.45, stagger: 0.08, ease: "power2.out", clearProps: "transform,opacity" }
+        );
+    }
+
     updateNowPlaying(nowPlaying);
 }
 
@@ -306,8 +314,15 @@ function updateNowPlaying(nowPlaying) {
             }
         }
 
+        const idleRadarPill = document.getElementById('idle-radar-pill');
+        const idlePlatforms = document.getElementById('idle-platforms');
+        if (idleRadarPill) idleRadarPill.classList.add('hidden');
+        if (idlePlatforms) idlePlatforms.classList.add('hidden');
+
         // Poster and Backdrop Extraction
         const imgUrl = nowPlaying.backdrop || nowPlaying.image;
+        const idleMesh = document.querySelector('.hero-idle-mesh');
+        if (idleMesh) idleMesh.style.opacity = imgUrl ? '0' : '0.85';
         if (imgUrl) {
             if (npImage.src !== imgUrl) {
                 npImage.style.opacity = '0';
@@ -346,7 +361,16 @@ function updateNowPlaying(nowPlaying) {
         npTitle.textContent = 'Ready to Stream';
         if (npEpisode) npEpisode.textContent = '';
         npStatus.className = 'status-badge paused';
-        npStatus.innerHTML = `<svg class="status-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg><span class="status-text">WAITING</span>`;
+        npStatus.innerHTML = `<svg class="status-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg><span class="status-text">RADAR ACTIVE</span>`;
+        
+        const idleRadarPill = document.getElementById('idle-radar-pill');
+        const idlePlatforms = document.getElementById('idle-platforms');
+        if (idleRadarPill) idleRadarPill.classList.remove('hidden');
+        if (idlePlatforms) idlePlatforms.classList.remove('hidden');
+
+        const idleMesh = document.querySelector('.hero-idle-mesh');
+        if (idleMesh) idleMesh.style.opacity = '0.85';
+
         if (metaYear) metaYear.textContent = '';
         if (metaRuntime) metaRuntime.textContent = '';
         if (metaGenres) metaGenres.textContent = '';

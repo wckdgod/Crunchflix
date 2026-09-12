@@ -386,11 +386,42 @@ body {
 .hero-banner {
     position: relative;
     width: 100%;
-    height: 165px;
-    background: linear-gradient(135deg, #181528 0%, #0d0c13 100%);
+    height: 175px;
+    background: radial-gradient(circle at 50% 20%, #1e1335 0%, #0c0a13 100%);
     border-bottom: 1px solid var(--glass-border);
     overflow: hidden;
     flex-shrink: 0;
+}
+
+/* Idle Nebula Grid & Pulsing Aura */
+.hero-idle-mesh {
+    position: absolute;
+    inset: 0;
+    background-image: 
+        linear-gradient(rgba(139, 92, 246, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(139, 92, 246, 0.08) 1px, transparent 1px);
+    background-size: 20px 20px;
+    background-position: center center;
+    opacity: 0.85;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+}
+
+.hero-idle-mesh::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.25) 0%, rgba(78, 222, 163, 0.08) 45%, transparent 70%);
+    animation: idleNebulaPulse 8s infinite alternate ease-in-out;
+}
+
+@keyframes idleNebulaPulse {
+    0% { transform: translate(-5%, -5%) scale(0.9); opacity: 0.6; }
+    50% { transform: translate(5%, 3%) scale(1.1); opacity: 0.95; }
+    100% { transform: translate(-3%, 5%) scale(1); opacity: 0.7; }
 }
 
 .hero-image {
@@ -402,6 +433,7 @@ body {
     object-position: center 25%;
     opacity: 0;
     transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 2;
 }
 
 .hero-gradient {
@@ -547,12 +579,98 @@ body {
     font-variant-numeric: tabular-nums;
 }
 
+.telemetry-right-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Antigravity Audio / Signal Visualizer Wave */
+.telemetry-visualizer {
+    display: flex;
+    align-items: flex-end;
+    gap: 2.5px;
+    height: 14px;
+    padding: 2px 4px;
+    background: rgba(139, 92, 246, 0.1);
+    border-radius: 4px;
+    border: 1px solid rgba(208, 188, 255, 0.2);
+}
+
+.telemetry-bar {
+    width: 2.5px;
+    background: linear-gradient(to top, var(--primary-electric), var(--secondary));
+    border-radius: 1px;
+    animation: visualizerSpring 1.2s infinite ease-in-out;
+}
+
+.bar-1 { height: 30%; animation-delay: 0.1s; }
+.bar-2 { height: 85%; animation-delay: 0.3s; }
+.bar-3 { height: 55%; animation-delay: 0.0s; }
+.bar-4 { height: 100%; animation-delay: 0.4s; }
+.bar-5 { height: 40%; animation-delay: 0.2s; }
+
+@keyframes visualizerSpring {
+    0%, 100% { height: 25%; opacity: 0.5; }
+    50% { height: 100%; opacity: 1; filter: drop-shadow(0 0 4px var(--secondary)); }
+}
+
 .telemetry-pct {
     font-size: 13px;
     font-weight: 700;
     color: var(--secondary);
     font-variant-numeric: tabular-nums;
 }
+
+/* Idle Radar Pill */
+.idle-radar-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(139, 92, 246, 0.2);
+    border: 1px solid rgba(208, 188, 255, 0.3);
+    color: var(--primary);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    text-transform: uppercase;
+}
+
+.radar-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--secondary);
+    box-shadow: 0 0 6px var(--secondary);
+    animation: radarBlink 1.5s infinite ease-in-out;
+}
+
+@keyframes radarBlink {
+    0%, 100% { transform: scale(0.8); opacity: 0.5; }
+    50% { transform: scale(1.3); opacity: 1; }
+}
+
+.idle-platforms-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.platform-mini-tag {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.02em;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.platform-mini-tag.netflix { color: #ff5252; background: rgba(229, 9, 20, 0.15); border-color: rgba(229, 9, 20, 0.3); }
+.platform-mini-tag.crunchyroll { color: #ff9800; background: rgba(244, 117, 33, 0.15); border-color: rgba(244, 117, 33, 0.3); }
+.platform-mini-tag.hotstar { color: #00e5ff; background: rgba(0, 210, 255, 0.15); border-color: rgba(0, 210, 255, 0.3); }
+.platform-mini-tag.prime { color: #38bdf8; background: rgba(0, 168, 225, 0.15); border-color: rgba(0, 168, 225, 0.3); }
 
 /* Progress Track & 80% Threshold */
 .progress-track-wrapper {
