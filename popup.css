@@ -315,49 +315,61 @@ body {
     50% { height: 100%; }
 }
 
-/* Platform Badges */
+/* Platform Badges (Logo Icon Only) */
 .platform-badge {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    justify-content: center;
     padding: 3px 8px;
+    height: 24px;
     border-radius: 9999px;
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
     border: 1px solid var(--glass-border);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.platform-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: currentColor;
+.platform-icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 14px;
+}
+
+.platform-icon-wrap svg {
+    height: 13px;
+    width: auto;
+    max-width: 48px;
+    display: block;
+    object-fit: contain;
 }
 
 .platform-crunchyroll {
-    background: rgba(244, 117, 33, 0.15);
+    background: rgba(244, 117, 33, 0.18);
     color: #f47521;
-    border-color: rgba(244, 117, 33, 0.35);
+    border-color: rgba(244, 117, 33, 0.4);
+    box-shadow: 0 0 10px rgba(244, 117, 33, 0.25);
 }
 
 .platform-netflix {
-    background: rgba(229, 9, 20, 0.15);
-    color: #ff4d4d;
-    border-color: rgba(229, 9, 20, 0.35);
+    background: rgba(229, 9, 20, 0.18);
+    color: #ff3344;
+    border-color: rgba(229, 9, 20, 0.4);
+    box-shadow: 0 0 10px rgba(229, 9, 20, 0.25);
 }
 
 .platform-hotstar {
-    background: rgba(0, 210, 255, 0.15);
+    background: rgba(0, 210, 255, 0.18);
     color: #00d2ff;
-    border-color: rgba(0, 210, 255, 0.35);
+    border-color: rgba(0, 210, 255, 0.4);
+    box-shadow: 0 0 10px rgba(0, 210, 255, 0.25);
 }
 
 .platform-amazon-prime {
-    background: rgba(0, 168, 225, 0.15);
+    background: rgba(0, 168, 225, 0.18);
     color: #38bdf8;
-    border-color: rgba(0, 168, 225, 0.35);
+    border-color: rgba(0, 168, 225, 0.4);
+    box-shadow: 0 0 10px rgba(0, 168, 225, 0.25);
 }
 
 .platform-unknown {
@@ -457,11 +469,11 @@ body {
 .hero-floating-header {
     position: relative;
     z-index: 10;
-    margin: 10px 14px 6px 14px;
-    padding: 14px 14px 12px 14px;
+    margin: 8px 12px 4px 12px;
+    padding: 10px 12px 10px 12px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
     background: rgba(18, 16, 26, 0.45);
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -542,8 +554,8 @@ body {
 
 /* Telemetry Card */
 .telemetry-card {
-    margin: 8px 14px 6px 14px;
-    padding: 13px 15px;
+    margin: 4px 12px 6px 12px;
+    padding: 10px 13px;
     background: rgba(18, 16, 26, 0.45);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 14px;
@@ -552,7 +564,7 @@ body {
     box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 14px 32px -6px rgba(0, 0, 0, 0.5), 0 0 24px rgba(139, 92, 246, 0.1);
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
     transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
     transform-style: preserve-3d;
 }

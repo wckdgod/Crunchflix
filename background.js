@@ -4,7 +4,7 @@ if (typeof importScripts === 'function') {
     } catch (e) { }
 }
 
-const VERSION = "3.3.0";
+const VERSION = "3.5.0";
 console.log(`[STREAMPULSE] Background script loaded. Version: ${VERSION}`);
 
 async function remoteLog(message, context = 'BG', level = 'INFO') {
@@ -225,6 +225,34 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.runtime.onInstalled.addListener(() => {
     console.log("[STREAMPULSE] Extension installed/updated, clearing nowPlaying state.");
     chrome.storage.local.remove('nowPlaying');
+});
+
+// --- Action Hover Tooltip Sync ---
+function updateActionTooltip(nowPlaying) {
+    if (!chrome.action || !chrome.action.setTitle) return;
+    if (nowPlaying && (nowPlaying.title || nowPlaying.rawTitle)) {
+        const title = nowPlaying.traktTitle || nowPlaying.title || nowPlaying.rawTitle;
+        const ep = (nowPlaying.type === 'episode' && (nowPlaying.season || nowPlaying.episode))
+            ? ` S${nowPlaying.season || 1}E${nowPlaying.episode || 1}`
+            : '';
+        const pct = Math.round(nowPlaying.progress || 0);
+        const status = nowPlaying.status === 'paused' ? 'Paused' : (nowPlaying.status === 'scrobbling' || nowPlaying.status === 'playing' ? 'Watching' : 'Scrobbling');
+        const tooltip = `[${status}] ${title}${ep} (${pct}%) - Scrobblr`;
+        chrome.action.setTitle({ title: tooltip });
+    } else {
+        chrome.action.setTitle({ title: "Scrobblr - Ready to Stream" });
+    }
+}
+
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'local' && changes.nowPlaying) {
+        updateActionTooltip(changes.nowPlaying.newValue);
+    }
+});
+
+// Update tooltip on service worker start
+chrome.storage.local.get(['nowPlaying'], (res) => {
+    updateActionTooltip(res.nowPlaying);
 });
 
 async function getShowDetails(idOrSlug) {

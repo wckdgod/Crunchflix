@@ -223,39 +223,9 @@ function updateNowPlaying(nowPlaying) {
         npStatus.className = badgeClass;
         npStatus.innerHTML = `${iconHtml}<span class="status-text">${statusText}</span>`;
 
-        // Platform Badge
-        const platformBadge = document.getElementById('platform-badge');
-        const platformName = document.getElementById('platform-name');
-        if (platformBadge && platformName) {
-            if (!nowPlaying.platform) {
-                platformName.textContent = 'DETECTING...';
-                platformBadge.className = 'platform-badge platform-unknown';
-            } else {
-                const rawPlat = nowPlaying.platform.toLowerCase();
-                let platName = 'Netflix';
-                let platClass = 'platform-badge platform-netflix';
+        // Platform Badge (Vector Logos)
+        updatePlatformBadge(nowPlaying.platform);
 
-                if (rawPlat.includes('hotstar')) {
-                    platName = 'JioHotstar';
-                    platClass = 'platform-badge platform-hotstar';
-                } else if (rawPlat.includes('prime') || rawPlat.includes('amazon')) {
-                    platName = 'Prime Video';
-                    platClass = 'platform-badge platform-amazon-prime';
-                } else if (rawPlat.includes('crunchyroll')) {
-                    platName = 'Crunchyroll';
-                    platClass = 'platform-badge platform-crunchyroll';
-                } else if (rawPlat.includes('netflix')) {
-                    platName = 'Netflix';
-                    platClass = 'platform-badge platform-netflix';
-                } else {
-                    platName = nowPlaying.platform.toUpperCase();
-                    platClass = 'platform-badge platform-unknown';
-                }
-
-                platformName.textContent = platName;
-                platformBadge.className = platClass;
-            }
-        }
 
         // Metadata with defaults for bullet points mapping
         let yearText = (nowPlaying.traktYear || nowPlaying.year) ? (nowPlaying.traktYear || nowPlaying.year) : '';
@@ -383,6 +353,91 @@ function updateNowPlaying(nowPlaying) {
         npImage.style.opacity = '0';
         if (npBgImage) npBgImage.style.opacity = '0';
         resetDominantColor();
+        updatePlatformBadge(null);
+    }
+}
+
+// Vector Brand Logos for Streaming Platforms
+const PLATFORM_LOGOS = {
+    netflix: `<svg viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M710 1024V0H562V710L462 250V1024H314V0H462L610 710V0H710V1024Z" fill="none"/>
+        <path d="M314 0H462V1024H314V0Z" fill="#B81D24"/>
+        <path d="M562 0H710V1024H562V0Z" fill="#B81D24"/>
+        <path d="M314 0L710 1024H562L314 260V0Z" fill="#E50914"/>
+    </svg>`,
+    hotstar: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L14.4 8.5H21.5L15.8 12.8L18 19.5L12 15.2L6 19.5L8.2 12.8L2.5 8.5H9.6L12 2Z" fill="url(#hotstar-grad)"/>
+        <defs>
+            <linearGradient id="hotstar-grad" x1="2" y1="2" x2="22" y2="20" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#00D2FF"/>
+                <stop offset="1" stop-color="#0072FF"/>
+            </linearGradient>
+        </defs>
+    </svg>`,
+    prime: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M4 14.5C9 18 15 18 20 14" stroke="#00A8E1" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M17.5 13.5L20.2 14.2L19 16.8" fill="#00A8E1"/>
+    </svg>`,
+    crunchyroll: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13.5 17.5C10.46 17.5 8 15.04 8 12C8 8.96 10.46 6.5 13.5 6.5C14.88 6.5 16.14 7.01 17.1 7.85C15.65 8.55 14.65 10.15 14.65 12C14.65 13.85 15.65 15.45 17.1 16.15C16.14 16.99 14.88 17.5 13.5 17.5Z" fill="#F47521"/>
+    </svg>`,
+    unknown: `<svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 14h-2v-2h2v2zm0-4h-2V7h2v5z"/>
+    </svg>`
+};
+
+function updatePlatformBadge(platform) {
+    const badge = document.getElementById('platform-badge');
+    const iconWrap = document.getElementById('platform-icon');
+    if (!badge || !iconWrap) return;
+
+    const applyPlatform = (p) => {
+        const raw = (p || '').toLowerCase();
+        let key = 'unknown';
+        let title = 'Streaming Radar';
+        let cls = 'platform-badge platform-unknown';
+
+        if (raw.includes('hotstar')) {
+            key = 'hotstar';
+            title = 'JioHotstar';
+            cls = 'platform-badge platform-hotstar';
+        } else if (raw.includes('prime') || raw.includes('amazon')) {
+            key = 'prime';
+            title = 'Prime Video';
+            cls = 'platform-badge platform-amazon-prime';
+        } else if (raw.includes('crunchyroll')) {
+            key = 'crunchyroll';
+            title = 'Crunchyroll';
+            cls = 'platform-badge platform-crunchyroll';
+        } else if (raw.includes('netflix')) {
+            key = 'netflix';
+            title = 'Netflix';
+            cls = 'platform-badge platform-netflix';
+        }
+
+        badge.className = cls;
+        badge.title = title;
+        iconWrap.innerHTML = PLATFORM_LOGOS[key] || PLATFORM_LOGOS.unknown;
+    };
+
+    if (platform) {
+        applyPlatform(platform);
+    } else {
+        // Query active browser tab to identify platform immediately upon visiting the website
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            const url = tabs && tabs[0]?.url ? tabs[0].url.toLowerCase() : '';
+            if (url.includes('hotstar.com') || url.includes('jiohotstar.com')) {
+                applyPlatform('hotstar');
+            } else if (url.includes('primevideo.com') || url.includes('amazon.')) {
+                applyPlatform('prime');
+            } else if (url.includes('crunchyroll.com')) {
+                applyPlatform('crunchyroll');
+            } else if (url.includes('netflix.com')) {
+                applyPlatform('netflix');
+            } else {
+                applyPlatform(null);
+            }
+        });
     }
 }
 
