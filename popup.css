@@ -451,36 +451,44 @@ body {
     z-index: 2;
 }
 
-/* Vignette overlay over full poster for crystalline readability */
+/* Vignette overlay over full poster: crystal clear in upper/middle hero zone, gentle darkening at bottom */
 .hero-vignette-overlay {
     position: absolute;
     inset: 0;
     z-index: 3;
     background: linear-gradient(
         180deg,
-        rgba(10, 9, 14, 0.35) 0%,
-        rgba(10, 9, 14, 0.15) 30%,
-        rgba(12, 11, 16, 0.65) 60%,
-        rgba(12, 11, 16, 0.92) 100%
+        rgba(10, 9, 14, 0.25) 0%,
+        rgba(10, 9, 14, 0.05) 20%,
+        rgba(10, 9, 14, 0.1) 45%,
+        rgba(12, 11, 16, 0.6) 70%,
+        rgba(12, 11, 16, 0.95) 100%
     );
     pointer-events: none;
 }
 
-/* Floating Hero Header with Frosted Glass */
-.hero-floating-header {
+/* Spacer pushing content to bottom and leaving hero poster clear */
+.hero-poster-spacer {
+    flex: 1 1 auto;
+    min-height: 120px;
+    pointer-events: none;
+}
+
+/* Sleek Frosted Bottom Glass Dock */
+.hero-bottom-dock {
     position: relative;
     z-index: 10;
-    margin: 8px 12px 4px 12px;
-    padding: 10px 12px 10px 12px;
+    margin: auto 10px 8px 10px;
+    padding: 12px 14px 10px 14px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    background: rgba(18, 16, 26, 0.45);
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    gap: 6px;
+    background: rgba(14, 12, 22, 0.72);
+    backdrop-filter: blur(28px) saturate(190%);
+    -webkit-backdrop-filter: blur(28px) saturate(190%);
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 14px;
-    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 12px 30px rgba(0, 0, 0, 0.4);
+    border-radius: 16px;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.18), 0 16px 36px rgba(0, 0, 0, 0.55);
 }
 
 .hero-tags-row {
@@ -762,7 +770,7 @@ body {
 
 /* Synopsis Wrapper */
 .synopsis-wrapper {
-    margin: 4px 14px;
+    margin: 4px 0;
     padding: 8px 12px;
     background: rgba(20, 19, 22, 0.5);
     border-radius: 8px;
@@ -784,7 +792,7 @@ body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
-    margin: 10px 14px;
+    margin: 8px 0 2px 0;
 }
 
 .col-span-2 {

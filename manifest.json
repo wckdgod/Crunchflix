@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Scrobblr - Stream Scrobbler for Scrob",
-  "version": "3.5.3",
+  "version": "3.5.4",
   "description": "Automatic live media scrobbler for Netflix, Prime Video, JioHotstar, and Crunchyroll to self-hosted Scrob.",
   "permissions": [
     "activeTab",
