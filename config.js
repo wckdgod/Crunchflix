@@ -1,7 +1,7 @@
 const DEFAULT_SCROB_URL = "http://localhost:7330";
 const DEFAULT_SCROB_API_KEY = "";
 const APP_NAME = "StreamPulse";
-const APP_VERSION = "3.5.4";
+const APP_VERSION = "3.5.5";
 
 // Cross-browser compatibility polyfill for chrome / browser namespaces
 if (typeof chrome === 'undefined' && typeof browser !== 'undefined') {

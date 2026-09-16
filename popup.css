@@ -681,12 +681,29 @@ body {
 }
 
 .platform-mini-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font-size: 9px;
     font-weight: 700;
-    padding: 1px 5px;
-    border-radius: 3px;
+    padding: 2px 6px;
+    border-radius: 4px;
     letter-spacing: 0.02em;
     border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(8px);
+    transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.platform-mini-tag:hover {
+    transform: translateY(-1px);
+}
+
+.mini-tag-img {
+    height: 10px;
+    width: auto;
+    max-width: 14px;
+    object-fit: contain;
+    display: inline-block;
 }
 
 .platform-mini-tag.netflix { color: #ff5252; background: rgba(229, 9, 20, 0.15); border-color: rgba(229, 9, 20, 0.3); }
