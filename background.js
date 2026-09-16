@@ -4,7 +4,7 @@ if (typeof importScripts === 'function') {
     } catch (e) { }
 }
 
-const VERSION = "3.5.1";
+const VERSION = "3.5.2";
 console.log(`[STREAMPULSE] Background script loaded. Version: ${VERSION}`);
 
 async function remoteLog(message, context = 'BG', level = 'INFO') {

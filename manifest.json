@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Scrobblr - Stream Scrobbler for Scrob",
-  "version": "3.5.1",
+  "version": "3.5.2",
   "description": "Automatic live media scrobbler for Netflix, Prime Video, JioHotstar, and Crunchyroll to self-hosted Scrob.",
   "permissions": [
     "activeTab",
@@ -66,7 +66,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "StreamPulse",
+    "default_title": "Scrobblr - Ready to Stream",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

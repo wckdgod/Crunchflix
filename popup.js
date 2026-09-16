@@ -240,6 +240,14 @@ function updateNowPlaying(nowPlaying) {
             metaGenres.textContent = (nowPlaying.genres && nowPlaying.genres.length > 0) ? nowPlaying.genres[0] : (nowPlaying.type === 'movie' ? 'Movie' : 'TV Show');
         }
 
+        // Dynamic hover tooltips
+        const hoverTooltipText = `[${statusText}] ${display}${(nowPlaying.type === 'episode' && (nowPlaying.season || nowPlaying.episode)) ? ` S${nowPlaying.season || 1}E${nowPlaying.episode || 1}` : ''} (${Math.round(progressPct)}%)`;
+        const brandLogo = document.querySelector('.brand-logo');
+        if (brandLogo) brandLogo.title = hoverTooltipText;
+        if (npStatus) npStatus.title = hoverTooltipText;
+        const telemetryCard = document.querySelector('.telemetry-card');
+        if (telemetryCard) telemetryCard.title = hoverTooltipText;
+
         // Episode Title
         const npEpName = document.getElementById('episode-name');
         if (npEpName) {
@@ -265,6 +273,7 @@ function updateNowPlaying(nowPlaying) {
         const progressPct = nowPlaying.progress || 0;
         if (progressBar) {
             progressBar.style.width = `${progressPct}%`;
+            progressBar.title = `${Math.round(progressPct)}% completed`;
         }
 
         const progressPctLabel = document.getElementById('progress-pct-label');
@@ -354,6 +363,12 @@ function updateNowPlaying(nowPlaying) {
         if (npBgImage) npBgImage.style.opacity = '0';
         resetDominantColor();
         updatePlatformBadge(null);
+
+        const brandLogo = document.querySelector('.brand-logo');
+        if (brandLogo) brandLogo.title = 'Scrobblr - Ready to Stream';
+        if (npStatus) npStatus.title = 'Scrobblr Radar Active';
+        const telemetryCard = document.querySelector('.telemetry-card');
+        if (telemetryCard) telemetryCard.title = 'Scrobblr - Ready to Stream';
     }
 }
 
