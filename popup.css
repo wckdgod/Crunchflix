@@ -683,12 +683,10 @@ body {
 .platform-mini-tag {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    font-size: 9px;
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 4px;
-    letter-spacing: 0.02em;
+    justify-content: center;
+    padding: 3px 6px;
+    height: 18px;
+    border-radius: 5px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     backdrop-filter: blur(8px);
     transition: transform 0.2s ease, background 0.2s ease;
@@ -699,11 +697,11 @@ body {
 }
 
 .mini-tag-img {
-    height: 10px;
+    height: 12px;
     width: auto;
-    max-width: 14px;
+    max-width: 38px;
     object-fit: contain;
-    display: inline-block;
+    display: block;
 }
 
 .platform-mini-tag.netflix { color: #ff5252; background: rgba(229, 9, 20, 0.15); border-color: rgba(229, 9, 20, 0.3); }

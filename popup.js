@@ -240,6 +240,9 @@ function updateNowPlaying(nowPlaying) {
             metaGenres.textContent = (nowPlaying.genres && nowPlaying.genres.length > 0) ? nowPlaying.genres[0] : (nowPlaying.type === 'movie' ? 'Movie' : 'TV Show');
         }
 
+        // Progress Bar & Telemetry progress calculation
+        const progressPct = nowPlaying.progress || 0;
+
         // Dynamic hover tooltips
         const hoverTooltipText = `[${statusText}] ${display}${(nowPlaying.type === 'episode' && (nowPlaying.season || nowPlaying.episode)) ? ` S${nowPlaying.season || 1}E${nowPlaying.episode || 1}` : ''} (${Math.round(progressPct)}%)`;
         const brandLogo = document.querySelector('.brand-logo');
@@ -247,6 +250,12 @@ function updateNowPlaying(nowPlaying) {
         if (npStatus) npStatus.title = hoverTooltipText;
         const telemetryCard = document.querySelector('.telemetry-card');
         if (telemetryCard) telemetryCard.title = hoverTooltipText;
+
+        // Ensure idle radar pill and idle platform chips are hidden when content is playing/identified
+        const idleRadarPill = document.getElementById('idle-radar-pill');
+        const idlePlatforms = document.getElementById('idle-platforms');
+        if (idleRadarPill) idleRadarPill.classList.add('hidden');
+        if (idlePlatforms) idlePlatforms.classList.add('hidden');
 
         // Episode Title
         const npEpName = document.getElementById('episode-name');
@@ -270,7 +279,6 @@ function updateNowPlaying(nowPlaying) {
         }
 
         // Progress Bar & Telemetry styling
-        const progressPct = nowPlaying.progress || 0;
         if (progressBar) {
             progressBar.style.width = `${progressPct}%`;
             progressBar.title = `${Math.round(progressPct)}% completed`;
@@ -292,11 +300,6 @@ function updateNowPlaying(nowPlaying) {
                 progressTimeLabel.textContent = `${Math.round(progressPct)}% Completed`;
             }
         }
-
-        const idleRadarPill = document.getElementById('idle-radar-pill');
-        const idlePlatforms = document.getElementById('idle-platforms');
-        if (idleRadarPill) idleRadarPill.classList.add('hidden');
-        if (idlePlatforms) idlePlatforms.classList.add('hidden');
 
         // Poster and Backdrop Extraction
         const imgUrl = nowPlaying.backdrop || nowPlaying.image;
