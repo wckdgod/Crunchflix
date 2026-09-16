@@ -162,7 +162,7 @@ function showConnected(nowPlaying) {
 
     // Antigravity GSAP Staggered Entrance
     if (typeof gsap !== 'undefined') {
-        gsap.fromTo(['.popup-header', '.hero-banner', '.telemetry-card', '.actions-grid', '.popup-footer'], 
+        gsap.fromTo(['.popup-header', '.hero-floating-header', '.actions-grid', '.popup-footer'], 
             { opacity: 0, y: 15, scale: 0.98 },
             { opacity: 1, y: 0, scale: 1, duration: 0.45, stagger: 0.08, ease: "power2.out", clearProps: "transform,opacity" }
         );

@@ -94,42 +94,42 @@
                             <span class="platform-mini-tag prime">Prime</span>
                         </span>
                     </div>
+
+                    <!-- Live Watch Telemetry Progress (Inside Hero Glass Card) -->
+                    <section class="telemetry-card">
+                        <div class="telemetry-header">
+                            <div class="telemetry-label-group">
+                                <span class="telemetry-label">CURRENT POSITION</span>
+                                <div class="telemetry-time-group">
+                                    <span id="progress-time-label" class="telemetry-time">00:00 / 00:00</span>
+                                </div>
+                            </div>
+                            <div class="telemetry-right-group">
+                                <div class="telemetry-visualizer" title="Stream Telemetry Signal">
+                                    <span class="telemetry-bar bar-1"></span>
+                                    <span class="telemetry-bar bar-2"></span>
+                                    <span class="telemetry-bar bar-3"></span>
+                                    <span class="telemetry-bar bar-4"></span>
+                                    <span class="telemetry-bar bar-5"></span>
+                                </div>
+                                <span id="progress-pct-label" class="telemetry-pct">0%</span>
+                            </div>
+                        </div>
+
+                        <!-- Glowing Progress Bar with 80% Marker -->
+                        <div class="progress-track-wrapper">
+                            <!-- 80% Threshold Indicator Line -->
+                            <div class="threshold-marker" title="Scrobble Threshold (80%)">
+                                <span class="threshold-text">80%</span>
+                            </div>
+                            <div class="progress-track">
+                                <div id="play-progress-bar" class="progress-fill" style="width: 0%;">
+                                    <div class="progress-thumb"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
                 </div>
-
-                <!-- Live Watch Telemetry Card -->
-                <section class="telemetry-card">
-                    <div class="telemetry-header">
-                        <div class="telemetry-label-group">
-                            <span class="telemetry-label">CURRENT POSITION</span>
-                            <div class="telemetry-time-group">
-                                <span id="progress-time-label" class="telemetry-time">00:00 / 00:00</span>
-                            </div>
-                        </div>
-                        <div class="telemetry-right-group">
-                            <div class="telemetry-visualizer" title="Stream Telemetry Signal">
-                                <span class="telemetry-bar bar-1"></span>
-                                <span class="telemetry-bar bar-2"></span>
-                                <span class="telemetry-bar bar-3"></span>
-                                <span class="telemetry-bar bar-4"></span>
-                                <span class="telemetry-bar bar-5"></span>
-                            </div>
-                            <span id="progress-pct-label" class="telemetry-pct">0%</span>
-                        </div>
-                    </div>
-
-                    <!-- Glowing Progress Bar with 80% Marker -->
-                    <div class="progress-track-wrapper">
-                        <!-- 80% Threshold Indicator Line -->
-                        <div class="threshold-marker" title="Scrobble Threshold (80%)">
-                            <span class="threshold-text">80%</span>
-                        </div>
-                        <div class="progress-track">
-                            <div id="play-progress-bar" class="progress-fill" style="width: 0%;">
-                                <div class="progress-thumb"></div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
 
                 <!-- Synopsis Accordion (if available) -->
                 <div id="synopsis-container" class="synopsis-wrapper hidden">
