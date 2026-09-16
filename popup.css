@@ -336,10 +336,11 @@ body {
     height: 14px;
 }
 
-.platform-icon-wrap svg {
-    height: 13px;
+.platform-icon-wrap svg,
+.platform-icon-wrap img {
+    height: 14px;
     width: auto;
-    max-width: 48px;
+    max-width: 52px;
     display: block;
     object-fit: contain;
 }
