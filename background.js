@@ -1838,7 +1838,13 @@ async function sendScrobble(action, item, auth, progress = 0, historyKey = null,
 
     const isEnded = action === 'stop' && progress >= 75;
     if (action === 'stop') {
-        payload.params = { data: { end: isEnded } };
+        payload.params = {
+            data: {
+                end: isEnded,
+                item: kodiItem,
+                player: payload.player
+            }
+        };
         activeKodiSession = null;
     } else {
         activeKodiSession = { item: kodiItem, auth, historyKey, tabId, progress };
