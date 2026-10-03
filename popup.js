@@ -173,6 +173,7 @@ function showConnected(nowPlaying) {
 
 function updateNowPlaying(nowPlaying) {
     const npTitle = document.getElementById('np-title');
+    const npTitleLogo = document.getElementById('np-title-logo');
     const npEpisode = document.getElementById('np-episode');
     const npStatus = document.getElementById('np-status');
     const npImage = document.getElementById('np-image');
@@ -190,6 +191,28 @@ function updateNowPlaying(nowPlaying) {
         // Build display title
         let display = nowPlaying.traktTitle || nowPlaying.title;
         npTitle.textContent = display;
+
+        if (nowPlaying.logo && npTitleLogo) {
+            npTitleLogo.alt = display || "Title Logo";
+            if (npTitleLogo.src !== nowPlaying.logo) {
+                npTitleLogo.src = nowPlaying.logo;
+            }
+            npTitleLogo.onload = () => {
+                npTitleLogo.classList.remove('hidden');
+                npTitle.classList.add('hidden');
+            };
+            npTitleLogo.onerror = () => {
+                npTitleLogo.classList.add('hidden');
+                npTitle.classList.remove('hidden');
+            };
+            if (npTitleLogo.complete && npTitleLogo.naturalWidth > 0) {
+                npTitleLogo.classList.remove('hidden');
+                npTitle.classList.add('hidden');
+            }
+        } else {
+            if (npTitleLogo) npTitleLogo.classList.add('hidden');
+            npTitle.classList.remove('hidden');
+        }
 
         if (nowPlaying.type === 'episode' && npEpisode) {
             npEpisode.textContent = `S${nowPlaying.season || '?'} E${nowPlaying.episode || '?'}`;
@@ -238,6 +261,92 @@ function updateNowPlaying(nowPlaying) {
 
         if (metaGenres) {
             metaGenres.textContent = (nowPlaying.genres && nowPlaying.genres.length > 0) ? nowPlaying.genres[0] : (nowPlaying.type === 'movie' ? 'Movie' : 'TV Show');
+        }
+
+        // External Ratings (IMDb, Rotten Tomatoes, Letterboxd)
+        const ratingsRow = document.getElementById('ratings-row');
+        const ratingImdb = document.getElementById('rating-imdb');
+        const ratingRt = document.getElementById('rating-rt');
+        const ratingLb = document.getElementById('rating-lb');
+        const ratingImdbVal = document.getElementById('rating-imdb-val');
+        const ratingRtVal = document.getElementById('rating-rt-val');
+        const ratingLbVal = document.getElementById('rating-lb-val');
+
+        const extRatings = nowPlaying.external_ratings || {};
+        let hasAnyRating = false;
+
+        if (ratingImdb && ratingImdbVal) {
+            const imdb = extRatings.imdb;
+            if (imdb && imdb.rating) {
+                ratingImdbVal.textContent = `★ ${Number(imdb.rating).toFixed(1)}`;
+                if (imdb.url) ratingImdb.href = imdb.url;
+                ratingImdb.classList.remove('hidden');
+                hasAnyRating = true;
+            } else if (nowPlaying.imdb_id) {
+                ratingImdbVal.textContent = '';
+                ratingImdb.href = `https://www.imdb.com/title/${nowPlaying.imdb_id}/`;
+                ratingImdb.classList.remove('hidden');
+                hasAnyRating = true;
+            } else {
+                ratingImdb.classList.add('hidden');
+            }
+        }
+
+        const ratingEpImdb = document.getElementById('rating-episode-imdb');
+        const ratingEpImdbVal = document.getElementById('rating-episode-imdb-val');
+        if (ratingEpImdb && ratingEpImdbVal) {
+            const epRatings = nowPlaying.episode_external_ratings || {};
+            const epImdb = epRatings.imdb;
+            const epImdbId = nowPlaying.episode_imdb_id || epImdb?.id;
+            if (epImdb && epImdb.rating) {
+                ratingEpImdbVal.textContent = `${Number(epImdb.rating).toFixed(1)}`;
+                if (epImdb.url) ratingEpImdb.href = epImdb.url;
+                else if (epImdbId) ratingEpImdb.href = `https://www.imdb.com/title/${epImdbId}/`;
+                ratingEpImdb.classList.remove('hidden');
+                hasAnyRating = true;
+            } else if (epImdbId) {
+                ratingEpImdbVal.textContent = '';
+                ratingEpImdb.href = `https://www.imdb.com/title/${epImdbId}/`;
+                ratingEpImdb.classList.remove('hidden');
+                hasAnyRating = true;
+            } else {
+                ratingEpImdb.classList.add('hidden');
+            }
+        }
+
+        if (ratingRt && ratingRtVal) {
+            const rt = extRatings.rotten_tomatoes;
+            if (rt && (rt.tomatometer != null || rt.audience != null)) {
+                let rtText = '';
+                if (rt.tomatometer != null) rtText += `${rt.tomatometer}%`;
+                if (rt.audience != null) rtText += ` 🍿${rt.audience}%`;
+                ratingRtVal.textContent = rtText.trim();
+                if (rt.url) ratingRt.href = rt.url;
+                ratingRt.classList.remove('hidden');
+                hasAnyRating = true;
+            } else {
+                ratingRt.classList.add('hidden');
+            }
+        }
+
+        if (ratingLb && ratingLbVal) {
+            const lb = extRatings.letterboxd;
+            if (lb && lb.rating) {
+                ratingLbVal.textContent = `★ ${Number(lb.rating).toFixed(1)}`;
+                if (lb.url) ratingLb.href = lb.url;
+                ratingLb.classList.remove('hidden');
+                hasAnyRating = true;
+            } else {
+                ratingLb.classList.add('hidden');
+            }
+        }
+
+        if (ratingsRow) {
+            if (hasAnyRating) {
+                ratingsRow.classList.remove('hidden');
+            } else {
+                ratingsRow.classList.add('hidden');
+            }
         }
 
         // Progress Bar & Telemetry progress calculation
@@ -341,6 +450,8 @@ function updateNowPlaying(nowPlaying) {
     } else {
         // Nothing playing
         npTitle.textContent = 'Ready to Stream';
+        if (npTitleLogo) npTitleLogo.classList.add('hidden');
+        npTitle.classList.remove('hidden');
         if (npEpisode) npEpisode.textContent = '';
         npStatus.className = 'status-badge paused';
         npStatus.innerHTML = `<svg class="status-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg><span class="status-text">RADAR ACTIVE</span>`;
@@ -356,6 +467,8 @@ function updateNowPlaying(nowPlaying) {
         if (metaYear) metaYear.textContent = '';
         if (metaRuntime) metaRuntime.textContent = '';
         if (metaGenres) metaGenres.textContent = '';
+        const ratingsRow = document.getElementById('ratings-row');
+        if (ratingsRow) ratingsRow.classList.add('hidden');
         if (npSynopsis) npSynopsis.classList.add('hidden');
         if (progressBar) progressBar.style.width = '0%';
         const progressPctLabel = document.getElementById('progress-pct-label');
@@ -381,6 +494,7 @@ const PLATFORM_LOGOS = {
     hotstar: `<img src="assets/platforms/hotstar.png" alt="JioHotstar" class="platform-img" />`,
     prime: `<img src="assets/platforms/prime.png" alt="Prime Video" class="platform-img" />`,
     crunchyroll: `<img src="assets/platforms/crunchyroll.png" alt="Crunchyroll" class="platform-img" />`,
+    appletv: `<img src="assets/platforms/appletv.png" alt="Apple TV+" class="platform-img" />`,
     unknown: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 14h-2v-2h2v2zm0-4h-2V7h2v5z"/></svg>`
 };
 
@@ -411,6 +525,10 @@ function updatePlatformBadge(platform) {
             key = 'netflix';
             title = 'Netflix';
             cls = 'platform-badge platform-netflix';
+        } else if (raw.includes('apple')) {
+            key = 'appletv';
+            title = 'Apple TV+';
+            cls = 'platform-badge platform-appletv';
         }
 
         badge.className = cls;
@@ -575,39 +693,103 @@ function logout() {
     });
 }
 
-// --- Fix Match Logic ---
+// --- Fix UI Handling & Logic ---
 const fixMatchBtn = document.getElementById('fixMatchBtn');
-// --- Fix UI Handling ---
+const fixEpisodeBtn = document.getElementById('fixEpisodeBtn');
+const saveEpFixBtn = document.getElementById('saveEpFixBtn');
+const cancelEpFixBtn = document.getElementById('cancelEpFixBtn');
+const cancelFixBtn = document.getElementById('cancelFixBtn');
+const fixSearchBtn = document.getElementById('fixSearchBtn');
+const fixInput = document.getElementById('fixInput');
+
+function performSearch() {
+    const fixInputEl = document.getElementById('fixInput');
+    const query = fixInputEl ? fixInputEl.value.trim() : '';
+    if (!query) return;
+
+    const resultsDiv = document.getElementById('fix-results');
+    const statusDiv = document.getElementById('fix-status');
+
+    if (statusDiv) {
+        statusDiv.textContent = "Searching Scrob...";
+        statusDiv.style.color = "#aaa";
+    }
+    if (resultsDiv) {
+        resultsDiv.classList.remove('hidden');
+        resultsDiv.innerHTML = '<div style="padding:15px; text-align:center; color:#888;">Searching...</div>';
+    }
+
+    chrome.runtime.sendMessage({
+        action: "searchScrobForPopup",
+        payload: { query: query, type: 'tv,movie' }
+    }, (response) => {
+        if (response && response.success) {
+            displayResults(response.results);
+            if (statusDiv) statusDiv.textContent = "";
+        } else {
+            if (statusDiv) {
+                statusDiv.textContent = "Error: " + (response?.error || "Search failed");
+                statusDiv.style.color = "#ff5252";
+            }
+            if (resultsDiv) resultsDiv.innerHTML = "";
+        }
+    });
+}
 
 if (fixMatchBtn) {
     fixMatchBtn.addEventListener('click', () => {
         const fixSection = document.getElementById('fix-section');
         const epSection = document.getElementById('fix-episode-section');
         if (epSection) epSection.classList.add('hidden'); // Close other fix tool
-        if (fixSection) fixSection.classList.toggle('hidden');
+        if (!fixSection) return;
+
+        const isOpening = fixSection.classList.contains('hidden');
+        fixSection.classList.toggle('hidden');
+
+        if (isOpening) {
+            chrome.storage.local.get(['nowPlaying'], (res) => {
+                const currentTitle = res.nowPlaying?.traktTitle || res.nowPlaying?.title || res.nowPlaying?.rawTitle || '';
+                const fixInputEl = document.getElementById('fixInput');
+                if (fixInputEl && currentTitle && !fixInputEl.value.trim()) {
+                    fixInputEl.value = currentTitle;
+                }
+                setTimeout(() => {
+                    fixSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    if (fixInputEl) {
+                        fixInputEl.focus();
+                        if (fixInputEl.value.trim()) {
+                            performSearch();
+                        }
+                    }
+                }, 80);
+            });
+        }
     });
 }
-
-const fixEpisodeBtn = document.getElementById('fixEpisodeBtn');
-const saveEpFixBtn = document.getElementById('saveEpFixBtn');
-const cancelEpFixBtn = document.getElementById('cancelEpFixBtn');
 
 if (fixEpisodeBtn) {
     fixEpisodeBtn.addEventListener('click', () => {
         const fixSection = document.getElementById('fix-section');
         const epSection = document.getElementById('fix-episode-section');
         if (fixSection) fixSection.classList.add('hidden'); // Close other fix tool
-        if (epSection) epSection.classList.toggle('hidden');
+        if (!epSection) return;
 
-        // Pre-fill current episode if we have it
-        chrome.storage.local.get(['nowPlaying'], (res) => {
-            const title = res.nowPlaying?.title || "";
-            const seMatch = title.match(/Season (\d+) Episode (\d+)/i);
-            if (seMatch) {
-                document.getElementById('fixSeasonInput').value = seMatch[1];
-                document.getElementById('fixEpInput').value = seMatch[2];
-            }
-        });
+        const isOpening = epSection.classList.contains('hidden');
+        epSection.classList.toggle('hidden');
+
+        if (isOpening) {
+            chrome.storage.local.get(['nowPlaying'], (res) => {
+                const np = res.nowPlaying;
+                const sInput = document.getElementById('fixSeasonInput');
+                const eInput = document.getElementById('fixEpInput');
+                if (sInput) sInput.value = (np?.season != null) ? np.season : 1;
+                if (eInput) eInput.value = (np?.episode != null) ? np.episode : 1;
+                setTimeout(() => {
+                    epSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    if (eInput) eInput.focus();
+                }, 80);
+            });
+        }
     });
 }
 
@@ -714,50 +896,13 @@ if (saveEpFixBtn) {
     });
 }
 
-const cancelFixBtn = document.getElementById('cancelFixBtn');
 if (cancelFixBtn) {
     cancelFixBtn.addEventListener('click', () => {
         document.getElementById('fix-section').classList.add('hidden');
     });
 }
 
-const fixSearchBtn = document.getElementById('fixSearchBtn');
-const fixInput = document.getElementById('fixInput');
-
 if (fixSearchBtn && fixInput) {
-    const performSearch = () => {
-        const query = fixInput.value.trim();
-        if (!query) return;
-
-        const resultsDiv = document.getElementById('fix-results');
-        const statusDiv = document.getElementById('fix-status');
-
-        if (statusDiv) {
-            statusDiv.textContent = "Searching Scrob...";
-            statusDiv.style.color = "#aaa";
-        }
-        if (resultsDiv) {
-            resultsDiv.classList.remove('hidden');
-            resultsDiv.innerHTML = '<div style="padding:15px; text-align:center; color:#888;">Searching...</div>';
-        }
-
-        chrome.runtime.sendMessage({
-            action: "searchScrobForPopup",
-            payload: { query: query, type: 'tv,movie' }
-        }, (response) => {
-            if (response && response.success) {
-                displayResults(response.results);
-                if (statusDiv) statusDiv.textContent = "";
-            } else {
-                if (statusDiv) {
-                    statusDiv.textContent = "Error: " + (response?.error || "Search failed");
-                    statusDiv.style.color = "#ff5252";
-                }
-                if (resultsDiv) resultsDiv.innerHTML = "";
-            }
-        });
-    };
-
     fixSearchBtn.addEventListener('click', performSearch);
     fixInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') performSearch();

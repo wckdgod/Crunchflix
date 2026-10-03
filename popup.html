@@ -85,7 +85,10 @@
                             <span class="radar-dot"></span> LIVE SCROBBLER RADAR
                         </span>
                     </div>
-                    <h2 id="np-title" class="show-title">Ready to Stream</h2>
+                    <div class="show-title-wrapper">
+                        <img id="np-title-logo" class="show-title-logo hidden" alt="Title Logo" />
+                        <h2 id="np-title" class="show-title">Ready to Stream</h2>
+                    </div>
                     <div class="metadata-row">
                         <span id="meta-year" class="meta-item"></span>
                         <span id="meta-runtime" class="meta-item"></span>
@@ -103,7 +106,34 @@
                             <span class="platform-mini-tag prime" title="Prime Video">
                                 <img src="assets/platforms/prime.png" alt="Prime" class="mini-tag-img" />
                             </span>
+                            <span class="platform-mini-tag appletv" title="Apple TV+">
+                                <img src="assets/platforms/appletv.png" alt="Apple TV+" class="mini-tag-img" />
+                            </span>
                         </span>
+                    </div>
+
+                    <!-- External Ratings Row: IMDb, Rotten Tomatoes, Letterboxd -->
+                    <div id="ratings-row" class="ratings-row hidden">
+                        <a id="rating-imdb" class="rating-chip chip-imdb hidden" target="_blank" rel="noopener noreferrer" title="View Show on IMDb">
+                            <span class="chip-tag imdb-tag">IMDb</span>
+                            <span id="rating-imdb-val" class="chip-val">--</span>
+                        </a>
+                        <a id="rating-episode-imdb" class="rating-chip chip-imdb chip-ep-imdb hidden" target="_blank" rel="noopener noreferrer" title="View Episode on IMDb">
+                            <span class="chip-tag ep-imdb-tag">EP ★</span>
+                            <span id="rating-episode-imdb-val" class="chip-val">--</span>
+                        </a>
+                        <a id="rating-rt" class="rating-chip chip-rt hidden" target="_blank" rel="noopener noreferrer" title="View on Rotten Tomatoes">
+                            <span class="chip-icon">🍅</span>
+                            <span id="rating-rt-val" class="chip-val">--</span>
+                        </a>
+                        <a id="rating-lb" class="rating-chip chip-lb hidden" target="_blank" rel="noopener noreferrer" title="View on Letterboxd">
+                            <span class="lb-dots">
+                                <span class="lb-dot orange"></span>
+                                <span class="lb-dot green"></span>
+                                <span class="lb-dot blue"></span>
+                            </span>
+                            <span id="rating-lb-val" class="chip-val">--</span>
+                        </a>
                     </div>
 
                     <!-- Live Watch Telemetry Progress -->
@@ -127,11 +157,11 @@
                             </div>
                         </div>
 
-                        <!-- Glowing Progress Bar with 80% Marker -->
+                        <!-- Glowing Progress Bar with 75% Marker -->
                         <div class="progress-track-wrapper">
-                            <!-- 80% Threshold Indicator Line -->
-                            <div class="threshold-marker" title="Scrobble Threshold (80%)">
-                                <span class="threshold-text">80%</span>
+                            <!-- 75% Threshold Indicator Line -->
+                            <div class="threshold-marker" title="Scrobble Threshold (75%)">
+                                <span class="threshold-text">75%</span>
                             </div>
                             <div class="progress-track">
                                 <div id="play-progress-bar" class="progress-fill" style="width: 0%;">
@@ -167,43 +197,43 @@
                             <span>Scrobble Now</span>
                         </button>
                     </div>
-                </div>
 
-                <!-- Collapsible Drawer: Manual Episode Mapping -->
-                <div id="fix-episode-section" class="drawer-panel hidden">
-                    <div class="drawer-header">
-                        <span class="drawer-title">MANUAL EPISODE OVERRIDE</span>
-                        <button id="cancelEpFixBtn" class="drawer-close" title="Close">&times;</button>
+                    <!-- Collapsible Drawer: Manual Episode Mapping (Nested inside dock for immediate visibility) -->
+                    <div id="fix-episode-section" class="drawer-panel hidden">
+                        <div class="drawer-header">
+                            <span class="drawer-title">MANUAL EPISODE OVERRIDE</span>
+                            <button id="cancelEpFixBtn" class="drawer-close" title="Close">&times;</button>
+                        </div>
+                        <p class="drawer-subtitle">Correct absolute numbering or season offsets for this anime/show.</p>
+                        <div class="drawer-form-row">
+                            <div class="input-col">
+                                <label for="fixSeasonInput" class="input-label">Season</label>
+                                <input type="number" id="fixSeasonInput" class="drawer-input" placeholder="1" min="1" value="1">
+                            </div>
+                            <div class="input-col">
+                                <label for="fixEpInput" class="input-label">Episode</label>
+                                <input type="number" id="fixEpInput" class="drawer-input" placeholder="1" min="1" value="1">
+                            </div>
+                            <div class="input-col-btn">
+                                <button id="saveEpFixBtn" class="btn-primary drawer-save-btn">Save</button>
+                            </div>
+                        </div>
+                        <div id="fix-ep-status" class="status-info"></div>
                     </div>
-                    <p class="drawer-subtitle">Correct absolute numbering or season offsets for this anime/show.</p>
-                    <div class="drawer-form-row">
-                        <div class="input-col">
-                            <label for="fixSeasonInput" class="input-label">Season</label>
-                            <input type="number" id="fixSeasonInput" class="drawer-input" placeholder="1" min="1" value="1">
-                        </div>
-                        <div class="input-col">
-                            <label for="fixEpInput" class="input-label">Episode</label>
-                            <input type="number" id="fixEpInput" class="drawer-input" placeholder="1" min="1" value="1">
-                        </div>
-                        <div class="input-col-btn">
-                            <button id="saveEpFixBtn" class="btn-primary drawer-save-btn">Save</button>
-                        </div>
-                    </div>
-                    <div id="fix-ep-status" class="status-info"></div>
-                </div>
 
-                <!-- Collapsible Drawer: Fix Match Search -->
-                <div id="fix-section" class="drawer-panel hidden">
-                    <div class="drawer-header">
-                        <span class="drawer-title">SEARCH SCROB & TMDB</span>
-                        <button id="cancelFixBtn" class="drawer-close" title="Close">&times;</button>
+                    <!-- Collapsible Drawer: Fix Match Search (Nested inside dock for immediate visibility) -->
+                    <div id="fix-section" class="drawer-panel hidden">
+                        <div class="drawer-header">
+                            <span class="drawer-title">SEARCH SCROB & TMDB</span>
+                            <button id="cancelFixBtn" class="drawer-close" title="Close">&times;</button>
+                        </div>
+                        <div class="search-box-row">
+                            <input type="text" id="fixInput" class="drawer-input flex-1" placeholder="Search show or movie title...">
+                            <button id="fixSearchBtn" class="btn-primary">Search</button>
+                        </div>
+                        <div id="fix-status" class="status-info"></div>
+                        <div id="fix-results" class="results-list hidden"></div>
                     </div>
-                    <div class="search-box-row">
-                        <input type="text" id="fixInput" class="drawer-input flex-1" placeholder="Search show or movie title...">
-                        <button id="fixSearchBtn" class="btn-primary">Search</button>
-                    </div>
-                    <div id="fix-status" class="status-info"></div>
-                    <div id="fix-results" class="results-list hidden"></div>
                 </div>
 
             </div>
