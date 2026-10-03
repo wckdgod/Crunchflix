@@ -300,7 +300,7 @@ function parsePrimeVideoSubtitle(subtitleText) {
         return {
             season: parseInt(fullMatch[1]),
             episode: parseInt(fullMatch[2]),
-            episodeTitle: fullMatch[3]?.trim() || null
+            episodeTitle: fullMatch[3]?.trim().replace(/^["'“”](.*)["'“”]$/, '$1') || null
         };
     }
 
@@ -310,7 +310,7 @@ function parsePrimeVideoSubtitle(subtitleText) {
         return {
             season: parseInt(codeMatch[1]),
             episode: parseInt(codeMatch[2]),
-            episodeTitle: codeMatch[3]?.trim() || null
+            episodeTitle: codeMatch[3]?.trim().replace(/^["'“”](.*)["'“”]$/, '$1') || null
         };
     }
 
@@ -320,11 +320,21 @@ function parsePrimeVideoSubtitle(subtitleText) {
         return {
             season: 1,
             episode: parseInt(epMatch[1]),
-            episodeTitle: epMatch[2]?.trim() || null
+            episodeTitle: epMatch[2]?.trim().replace(/^["'“”](.*)["'“”]$/, '$1') || null
         };
     }
 
-    // Pattern 4: Season keyword only (e.g. "Season 1", "Staffel 1", "Temporada 1")
+    // Pattern 4: Episode keyword or quoted title only (e.g. 'Ep. "Breaking & Entering"', '"Breaking & Entering"')
+    const titleOnlyMatch = text.match(/^(?:(?:Episode|Episodio|Episódio|Épisode|Folge|Odcinek|Aflevering|Bölüm|Ep|E|F)\.?\s*)?["'“]([^"'”]+)["'”]$/i);
+    if (titleOnlyMatch) {
+        return {
+            season: 1,
+            episode: null,
+            episodeTitle: titleOnlyMatch[1].trim()
+        };
+    }
+
+    // Pattern 5: Season keyword only (e.g. "Season 1", "Staffel 1", "Temporada 1")
     const seasonMatch = text.match(/^(?:Season|Staffel|Saison|Temporada|Stagione|Sezon|Seizoen|Temp|St|S|T)\s*(\d+)$/i);
     if (seasonMatch) {
         return {
@@ -350,12 +360,27 @@ function findPrimeVideoSeasonEpisodeDOM() {
         '[class*="meta"]'
     ];
 
+    let foundSeasonOnly = null;
+    let foundTitleOnly = null;
+
     for (const sel of subtitleSelectors) {
         const el = querySelectorShadow(sel);
         if (el?.textContent?.trim()) {
             const epInfo = parsePrimeVideoSubtitle(el.textContent);
-            if (epInfo && epInfo.episode) return epInfo;
+            if (epInfo) {
+                if (epInfo.episode) return epInfo;
+                if (epInfo.season && !foundSeasonOnly) foundSeasonOnly = epInfo;
+                if (epInfo.episodeTitle && !foundTitleOnly) foundTitleOnly = epInfo;
+            }
         }
+    }
+
+    if (foundTitleOnly) {
+        return {
+            season: foundSeasonOnly?.season || 1,
+            episode: null,
+            episodeTitle: foundTitleOnly.episodeTitle
+        };
     }
 
     // 2. Check titleElement siblings or parent text
@@ -404,12 +429,58 @@ function findPrimeVideoSeasonEpisodeDOM() {
         }
     } catch (e) { }
 
-    return null;
+    return foundSeasonOnly;
 }
 
 function parsePrimeVideoMetadata() {
     try {
-        // TIER 1: Meta Tags (og:title, meta description, twitter:title, og:description)
+        // TIER 1: Live DOM Video Player Overlay (Active Playing State - Highest Accuracy for SPAs)
+        const titleSelectors = [
+            '.atvwebplayersdk-title-text',
+            '[data-automation-id="title"]',
+            '[class*="atvwebplayersdk-title"]',
+            '[class*="Title-module__title"]',
+            '[data-testid="video-title"]',
+            '.webPlayerTitle'
+        ];
+
+        let titleElement = null;
+        for (const sel of titleSelectors) {
+            titleElement = querySelectorShadow(sel);
+            if (titleElement?.textContent?.trim()) break;
+        }
+
+        if (titleElement) {
+            const titleText = titleElement.textContent?.trim() || '';
+
+            if (titleText) {
+                // Check if titleText itself already contains Season/Episode
+                const titleSeMatch = titleText.match(/(.+?)\s+[-:]?\s*(?:Season|Staffel|Saison|Temporada|Stagione|Sezon|Seizoen|S|T)\s*(\d+)\s*(?:Episode|Episodio|Episódio|Épisode|Folge|Odcinek|Aflevering|Bölüm|Ep|E|F)\.?\s*(\d+)/i);
+                if (titleSeMatch) {
+                    return `${titleSeMatch[1].trim()} - Season ${titleSeMatch[2]} Episode ${titleSeMatch[3]}`;
+                }
+
+                const epInfo = findPrimeVideoSeasonEpisodeDOM();
+                if (epInfo) {
+                    const sNum = epInfo.season || 1;
+                    if (epInfo.episode) {
+                        const eNum = epInfo.episode;
+                        const epTitle = epInfo.episodeTitle ? ` - ${epInfo.episodeTitle}` : '';
+                        console.log(`[STREAMPULSE] Prime Video DOM matched: ${titleText} S${sNum}:E${eNum}${epTitle}`);
+                        return `${titleText} - Season ${sNum} Episode ${eNum}${epTitle}`;
+                    } else if (epInfo.episodeTitle) {
+                        console.log(`[STREAMPULSE] Prime Video DOM title matched: ${titleText} S${sNum} - ${epInfo.episodeTitle}`);
+                        return `${titleText} - Season ${sNum} - ${epInfo.episodeTitle}`;
+                    } else if (epInfo.season) {
+                        return `${titleText} Season ${epInfo.season}`;
+                    }
+                }
+
+                return titleText;
+            }
+        }
+
+        // TIER 2: Meta Tags (og:title, meta description, twitter:title, og:description)
         const ogTitle = document.querySelector('meta[property="og:title"]')?.content ||
                         document.querySelector('meta[name="twitter:title"]')?.content || '';
         const metaDesc = document.querySelector('meta[name="description"]')?.content ||
@@ -440,7 +511,7 @@ function parsePrimeVideoMetadata() {
             }
         }
 
-        // TIER 2: JSON-LD Structured Data
+        // TIER 3: JSON-LD Structured Data
         const ldScripts = document.querySelectorAll('script[type="application/ld+json"]');
         for (const script of ldScripts) {
             try {
@@ -456,49 +527,6 @@ function parsePrimeVideoMetadata() {
                     }
                 }
             } catch (e) { }
-        }
-
-        // TIER 3: DOM Player Title + Multi-tier Subtitle / Season-Episode Search
-        const titleSelectors = [
-            '.atvwebplayersdk-title-text',
-            '[data-automation-id="title"]',
-            '[class*="atvwebplayersdk-title"]',
-            '[class*="Title-module__title"]',
-            '[data-testid="video-title"]',
-            '.webPlayerTitle'
-        ];
-
-        let titleElement = null;
-        for (const sel of titleSelectors) {
-            titleElement = querySelectorShadow(sel);
-            if (titleElement?.textContent?.trim()) break;
-        }
-
-        if (titleElement) {
-            const titleText = titleElement.textContent?.trim() || '';
-
-            if (titleText) {
-                // Check if titleText itself already contains Season/Episode
-                const titleSeMatch = titleText.match(/(.+?)\s+[-:]?\s*(?:Season|Staffel|Saison|Temporada|Stagione|Sezon|Seizoen|S|T)\s*(\d+)\s*(?:Episode|Episodio|Episódio|Épisode|Folge|Odcinek|Aflevering|Bölüm|Ep|E|F)\.?\s*(\d+)/i);
-                if (titleSeMatch) {
-                    return `${titleSeMatch[1].trim()} - Season ${titleSeMatch[2]} Episode ${titleSeMatch[3]}`;
-                }
-
-                const epInfo = findPrimeVideoSeasonEpisodeDOM();
-                if (epInfo && epInfo.episode) {
-                    const sNum = epInfo.season || 1;
-                    const eNum = epInfo.episode;
-                    const epTitle = epInfo.episodeTitle ? ` - ${epInfo.episodeTitle}` : '';
-                    console.log(`[STREAMPULSE] Prime Video DOM matched: ${titleText} S${sNum}:E${eNum}${epTitle}`);
-                    return `${titleText} - Season ${sNum} Episode ${eNum}${epTitle}`;
-                }
-
-                if (epInfo && epInfo.season && !epInfo.episode) {
-                    return `${titleText} Season ${epInfo.season}`;
-                }
-
-                return titleText;
-            }
         }
 
         // TIER 4: Document Title Parsing
@@ -550,12 +578,99 @@ function parsePrimeVideoMetadata() {
     return cleanDoc;
 }
 
+// ── Apple TV+ Parser ──
+function parseAppleTvMetadata() {
+    // 1. Direct DOM inspection of Apple TV's player video metadata (Highest Priority!)
+    // HTML:
+    // <div class="video-metadata">
+    //   <div class="subtitle svelte-1xeutm" data-testid="player-metadata-subtitle">
+    //     <span class="subtitle-text svelte-1xeutm">S1, E1 · Failure’s Contagious</span>
+    //   </div>
+    //   <div class="title svelte-1xeutm" data-testid="player-metadata-title">Slow Horses</div>
+    // </div>
+    const titleEl = document.querySelector('[data-testid="player-metadata-title"]') || 
+                    document.querySelector('.video-metadata .title');
+    const subEl = document.querySelector('[data-testid="player-metadata-subtitle"]') || 
+                  document.querySelector('.video-metadata .subtitle') ||
+                  document.querySelector('.video-metadata .subtitle-text');
+
+    if (titleEl && titleEl.textContent) {
+        const rawShow = titleEl.textContent.trim();
+        const rawSub = subEl ? subEl.textContent.trim() : '';
+
+        if (rawShow) {
+            if (rawSub) {
+                // Matches "S1, E1 · Failure’s Contagious", "S1, E1", "S02, E05 - Title"
+                const seMatch = rawSub.match(/S(\d+)[\s,]+E(\d+)(?:[\s·•\-–—]+(.*))?/i);
+                if (seMatch) {
+                    const s = parseInt(seMatch[1], 10);
+                    const e = parseInt(seMatch[2], 10);
+                    const epTitle = seMatch[3] ? seMatch[3].trim() : '';
+                    console.log(`[STREAMPULSE] Apple TV+ Matched: ${rawShow} S${s}E${e} (${epTitle})`);
+                    return `${rawShow} - Season ${s} Episode ${e}`;
+                }
+            }
+            // Standalone movie or title without season/episode
+            return rawShow;
+        }
+    }
+
+    // 2. Structured JSON-LD in head
+    const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+    for (const script of scripts) {
+        try {
+            const data = JSON.parse(script.textContent);
+            if (data['@type'] === 'TVEpisode') {
+                const epName = data.name || '';
+                const sName = data.partOfSeries?.name || '';
+                const s = data.partOfSeason?.seasonNumber ? parseInt(data.partOfSeason.seasonNumber, 10) : null;
+                const e = data.episodeNumber ? parseInt(data.episodeNumber, 10) : null;
+                if (sName && s !== null && e !== null) {
+                    return `${sName} - Season ${s} Episode ${e}`;
+                }
+            } else if (data['@type'] === 'Movie' && data.name) {
+                return data.name;
+            }
+        } catch (e) {}
+    }
+
+    // 3. Document title (e.g. "Slow Horses - Season 4, Episode 1: Failure's Contagious | Apple TV+")
+    const docTitle = (document.title || '').trim();
+    const cleanDoc = docTitle.replace(/\s*[|\-]\s*Apple TV\+.*$/i, '').trim();
+
+    if (cleanDoc) {
+        const seMatch = cleanDoc.match(/(.+?)\s*[-–—]\s*Season\s*(\d+)[,\s]+Episode\s*(\d+)/i);
+        if (seMatch) {
+            const s = parseInt(seMatch[2], 10);
+            const e = parseInt(seMatch[3], 10);
+            return `${seMatch[1].trim()} - Season ${s} Episode ${e}`;
+        }
+        const shortSeMatch = cleanDoc.match(/(.+?)\s*[-–—]\s*S(\d+)[\s:]*E(\d+)/i);
+        if (shortSeMatch) {
+            const s = parseInt(shortSeMatch[2], 10);
+            const e = parseInt(shortSeMatch[3], 10);
+            return `${shortSeMatch[1].trim()} - Season ${s} Episode ${e}`;
+        }
+        return cleanDoc;
+    }
+
+    // 4. URL fallback (/episode/slug/... or /movie/slug/...)
+    const path = window.location.pathname;
+    if (path.includes('/movie/')) {
+        const slug = path.split('/movie/')[1]?.split('/')[0];
+        if (slug) return slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    return null;
+}
+
 function extractTitle() {
     const domain = window.location.hostname;
     if (domain.includes("netflix.com")) return parseNetflixMetadata();
     if (domain.includes("crunchyroll.com")) return parseCrunchyrollMetadata();
     if (domain.includes("hotstar.com") || domain.includes("jiohotstar.com")) return parseHotstarMetadata();
     if (domain.includes("primevideo.com") || domain.includes("amazon.com") || domain.includes("amazon.co.uk") || domain.includes("amazon.co.jp") || domain.includes("amazon.de") || domain.includes("amazon.com.au")) return parsePrimeVideoMetadata();
+    if (domain.includes("apple.com")) return parseAppleTvMetadata();
     return document.title;
 }
 
@@ -797,6 +912,7 @@ function sendScrobbleMessage(video, status) {
     if (hostname.includes('crunchyroll')) platform = 'crunchyroll';
     else if (hostname.includes('hotstar') || hostname.includes('jiohotstar')) platform = 'hotstar';
     else if (hostname.includes('primevideo') || hostname.includes('amazon')) platform = 'amazon-prime';
+    else if (hostname.includes('apple.com')) platform = 'appletv';
 
     sendToPort("scrobble", {
         status,
@@ -831,6 +947,7 @@ function sendLiveProgressUpdate(video) {
     if (hostname.includes('crunchyroll')) platform = 'crunchyroll';
     else if (hostname.includes('hotstar') || hostname.includes('jiohotstar')) platform = 'hotstar';
     else if (hostname.includes('primevideo') || hostname.includes('amazon')) platform = 'amazon-prime';
+    else if (hostname.includes('apple.com')) platform = 'appletv';
 
     sendToPort("progress_update", {
         progress,
@@ -866,16 +983,28 @@ function monitorVideo(video) {
 
     if (!video.paused && !video.ended) sendScrobbleMessage(video, 'playing');
 
+    let lastTrackedTime = 0;
     if (video._ghostHeartbeat) clearInterval(video._ghostHeartbeat);
     video._ghostHeartbeat = setInterval(() => {
-        if (!video.paused && !video.ended && !video._autoStopped) {
-            const progress = video.duration ? (video.currentTime / video.duration) * 100 : 0;
-            if (progress >= 80) {
-                video._autoStopped = true;
-                sendScrobbleMessage(video, 'stopped');
+        if (!video.paused && !video.ended) {
+            // Auto-play reset detection: if currentTime jumped backwards by more than 30 seconds
+            // (e.g. from 2400s to 0s on next episode auto-play), reset _autoStopped!
+            if (video.currentTime < lastTrackedTime - 30) {
+                console.log("[STREAMPULSE] Video time rewind / new episode auto-play detected, resetting autoStopped");
+                video._autoStopped = false;
+                sendScrobbleMessage(video, 'playing');
+            }
+            lastTrackedTime = video.currentTime;
+
+            if (!video._autoStopped) {
+                const progress = video.duration ? (video.currentTime / video.duration) * 100 : 0;
+                if (progress >= 75) {
+                    video._autoStopped = true;
+                    sendScrobbleMessage(video, 'stopped');
+                }
             }
         }
-    }, 5000);
+    }, 4000);
 
     // Live UI updates (every second)
     if (video._ghostLiveProgress) clearInterval(video._ghostLiveProgress);
@@ -886,7 +1015,7 @@ function monitorVideo(video) {
     window.addEventListener('beforeunload', () => {
         if (video && !video.ended) {
             const progress = video.duration ? (video.currentTime / video.duration) * 100 : 0;
-            sendScrobbleMessage(video, progress >= 85 ? 'stopped' : 'paused');
+            sendScrobbleMessage(video, progress >= 75 ? 'stopped' : 'paused');
         }
     }, { capture: true });
 }
@@ -958,6 +1087,9 @@ function initPrimeVideo() {
         initHotstar();
     } else if (domain.includes("primevideo.com") || domain.includes("amazon.com") || domain.includes("amazon.co.uk") || domain.includes("amazon.co.jp") || domain.includes("amazon.de") || domain.includes("amazon.com.au")) {
         initPrimeVideo();
+    } else if (domain.includes("apple.com")) {
+        console.log("[STREAMPULSE] Initializing Apple TV+ Parser...");
+        showToast("STREAMPULSE: Apple TV+ playback tracking active");
     }
 
     videoCheckInterval = setInterval(checkForVideo, 2000);

@@ -279,6 +279,78 @@ async function getShowDetails(idOrSlug) {
 
 // --- Helper Functions ---
 
+const DEFAULT_TMDB_API_KEY = "7b426875f5bef4e25f910f23d4559971";
+const tmdbLogoCache = new Map(); // tmdbType:id or title -> logoUrl
+
+async function getTmdbLogo(tmdbId, mediaType = 'tv', userApiKey = null) {
+    if (!tmdbId) return null;
+    const apiKey = userApiKey || DEFAULT_TMDB_API_KEY;
+    if (!apiKey) return null;
+
+    const type = (mediaType === 'movie') ? 'movie' : 'tv';
+    const cacheKey = `${type}:${tmdbId}`;
+    if (tmdbLogoCache.has(cacheKey)) {
+        return tmdbLogoCache.get(cacheKey);
+    }
+
+    try {
+        const url = `https://api.themoviedb.org/3/${type}/${tmdbId}/images?api_key=${apiKey}`;
+        const res = await fetch(url);
+        if (res.ok) {
+            const data = await res.json();
+            const logos = data.logos || [];
+            if (logos.length > 0) {
+                // Prioritize English logos, or fallback to the highest-rated logo
+                const enLogo = logos.find(l => l.iso_639_1 === 'en');
+                const bestLogo = enLogo || logos.slice().sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0))[0];
+                if (bestLogo?.file_path) {
+                    const logoUrl = `https://image.tmdb.org/t/p/w500${bestLogo.file_path}`;
+                    tmdbLogoCache.set(cacheKey, logoUrl);
+                    return logoUrl;
+                }
+            }
+        }
+    } catch (e) {
+        console.warn("[STREAMPULSE] Failed to fetch TMDB logo for id:", tmdbId, e);
+    }
+
+    tmdbLogoCache.set(cacheKey, null);
+    return null;
+}
+
+async function getTmdbLogoByName(title, mediaType = 'tv', userApiKey = null) {
+    if (!title) return null;
+    const apiKey = userApiKey || DEFAULT_TMDB_API_KEY;
+    if (!apiKey) return null;
+
+    const type = (mediaType === 'movie') ? 'movie' : 'tv';
+    const cacheKey = `name:${type}:${title.toLowerCase().trim()}`;
+    if (tmdbLogoCache.has(cacheKey)) {
+        return tmdbLogoCache.get(cacheKey);
+    }
+
+    try {
+        const searchUrl = `https://api.themoviedb.org/3/search/${type}?api_key=${apiKey}&query=${encodeURIComponent(title)}`;
+        const searchRes = await fetch(searchUrl);
+        if (searchRes.ok) {
+            const searchData = await searchRes.json();
+            const bestHit = searchData.results?.[0];
+            if (bestHit?.id) {
+                const logoUrl = await getTmdbLogo(bestHit.id, type, apiKey);
+                if (logoUrl) {
+                    tmdbLogoCache.set(cacheKey, logoUrl);
+                    return logoUrl;
+                }
+            }
+        }
+    } catch (e) {
+        console.warn("[STREAMPULSE] Failed to search TMDB logo for title:", title, e);
+    }
+
+    tmdbLogoCache.set(cacheKey, null);
+    return null;
+}
+
 function extractEpId(url) {
     const match = url.match(/\/watch\/(\d+)/);
     return match ? match[1] : null;
@@ -539,9 +611,9 @@ async function handleScrobble(data, sender) {
         const t = title.trim().toLowerCase();
         if (t === "") return true;
         if (t.includes("season") && !t.includes("episode") && !t.includes("ep.") && !t.includes("ep ")) return true;
-        const exactMatches = ["vilos", "netflix", "crunchyroll", "watch", "{iframe, needs metadata}", "jiohotstar", "jio hotstar", "hotstar", "disney+ hotstar", "prime video", "primevideo", "amazon prime", "amazon prime video", "amazon"];
+        const exactMatches = ["vilos", "netflix", "crunchyroll", "watch", "{iframe, needs metadata}", "jiohotstar", "jio hotstar", "hotstar", "disney+ hotstar", "prime video", "primevideo", "amazon prime", "amazon prime video", "amazon", "apple tv", "apple tv+", "appletv"];
         if (exactMatches.includes(t)) return true;
-        if (t.includes("watch tv shows, movies") || t.includes("watch movies, tv shows") || t.includes("sports, and live tv") || t.includes("live cricket") || t.startsWith("netflix - ")) return true;
+        if (t.includes("watch tv shows, movies") || t.includes("watch movies, tv shows") || t.includes("sports, and live tv") || t.includes("live cricket") || t.startsWith("netflix - ") || t.startsWith("apple tv+ - ")) return true;
         if (t.startsWith("prime video:") && (t.includes("watch") || t.includes("movies") || t.includes("tv shows"))) return true;
         return false;
     };
@@ -775,13 +847,28 @@ async function handleScrobble(data, sender) {
         finalBackdrop = finalImage;
     }
 
+    let finalLogo = null;
+    if (show.logo_path) {
+        finalLogo = show.logo_path.startsWith('http') ? show.logo_path : `https://image.tmdb.org/t/p/w500${show.logo_path}`;
+    } else if (show.logo) {
+        finalLogo = show.logo.startsWith('http') ? show.logo : `https://image.tmdb.org/t/p/w500${show.logo}`;
+    }
+    if (!finalLogo && itemTmdbId) {
+        finalLogo = await getTmdbLogo(itemTmdbId, parsed.type, storage.tmdb_api_key);
+    }
+    if (!finalLogo) {
+        finalLogo = await getTmdbLogoByName(show.title || parsed.title, parsed.type, storage.tmdb_api_key);
+    }
+
     synopsis = show.overview || null;
     let episodeTitle = null;
+    let episodeTmdbId = null;
     if ((parsed.type === 'episode' || parsed.type === 'anime') && itemTmdbId) {
         const epData = await getScrobEpisodeDetails(itemTmdbId, parsed.season || 1, parsed.episode, auth, storage.tmdb_api_key);
         if (epData) {
             if (epData.overview || epData.description) synopsis = epData.overview || epData.description;
             if (epData.name || epData.title) episodeTitle = epData.name || epData.title;
+            if (epData.id) episodeTmdbId = epData.id;
         }
     }
 
@@ -802,7 +889,7 @@ async function handleScrobble(data, sender) {
         chrome.storage.local.get(['nowPlaying'], (res) => {
             if (res.nowPlaying && res.nowPlaying.title === parsed.title) {
                 chrome.storage.local.set({
-                    nowPlaying: { ...res.nowPlaying, progress: data.progress || res.nowPlaying.progress || 0, synopsis: synopsis || res.nowPlaying.synopsis }
+                    nowPlaying: { ...res.nowPlaying, progress: data.progress || res.nowPlaying.progress || 0, synopsis: synopsis || res.nowPlaying.synopsis, logo: finalLogo || res.nowPlaying.logo || null }
                 });
             }
         });
@@ -814,7 +901,7 @@ async function handleScrobble(data, sender) {
         if (existing.nowPlaying) {
             const uiStatus = actionType === 'start' ? 'scrobbling' : (actionType === 'pause' ? 'paused' : 'stopped');
             chrome.storage.local.set({
-                'nowPlaying': { ...existing.nowPlaying, status: uiStatus, timestamp: Date.now(), progress: data.progress || existing.nowPlaying.progress || 0, synopsis: synopsis || existing.nowPlaying.synopsis }
+                'nowPlaying': { ...existing.nowPlaying, status: uiStatus, timestamp: Date.now(), progress: data.progress || existing.nowPlaying.progress || 0, synopsis: synopsis || existing.nowPlaying.synopsis, logo: finalLogo || existing.nowPlaying.logo || null }
             });
         }
     }
@@ -824,7 +911,7 @@ async function handleScrobble(data, sender) {
 
     const historyKey = `${parsed.title}:${parsed.season}:${parsed.episode}`;
 
-    if (progressVal >= 80) {
+    if (progressVal >= 75) {
         actionType = 'stop';
         if (scrobbledSessionHistory.has(historyKey)) {
             console.log(`[STREAMPULSE] Already scrobbled ${historyKey} as 'stop'. Skipping.`);
@@ -851,10 +938,12 @@ async function handleScrobble(data, sender) {
         episode: parsed.episode,
         episodeTitle: episodeTitle || parsed.episodeTitle || null,
         runtime: show.runtime || null,
-        ids: { ...(show.ids || {}), tmdb: itemTmdbId, netflix: netflixEpId ? parseInt(netflixEpId) : undefined }
+        show_tmdb_id: itemTmdbId,
+        episode_tmdb_id: episodeTmdbId || null,
+        ids: { ...(show.ids || {}), tmdb: parsed.type === 'episode' ? (episodeTmdbId || undefined) : itemTmdbId, netflix: netflixEpId ? parseInt(netflixEpId) : undefined }
     }, auth, progressVal, historyKey, tabId, data.currentTime, data.duration);
 
-    if (actionType === 'stop' && progressVal >= 80) {
+    if (actionType === 'stop' && progressVal >= 75) {
         scrobbledSessionHistory.add(historyKey);
     }
 
@@ -866,6 +955,20 @@ async function handleScrobble(data, sender) {
 
     const finalSeason = parsed.type === 'episode' ? (parsed.season || 1) : parsed.season;
 
+    let externalRatings = show.external_ratings || null;
+    if (!externalRatings && (itemTmdbId || show.imdb_id || show.ids?.imdb)) {
+        externalRatings = await getScrobExternalRatings(parsed.type, itemTmdbId, show.imdb_id || show.ids?.imdb, auth);
+    }
+
+    let episodeExternalRatings = null;
+    let episodeImdbId = null;
+    if (parsed.type === 'episode' && parsed.episode) {
+        episodeExternalRatings = await getScrobEpisodeExternalRatings(itemTmdbId, finalSeason, parsed.episode, show.imdb_id || show.ids?.imdb, auth);
+        if (episodeExternalRatings && episodeExternalRatings.imdb?.id) {
+            episodeImdbId = episodeExternalRatings.imdb.id;
+        }
+    }
+
     chrome.storage.local.set({
         'nowPlaying': {
             title: parsed.title,
@@ -876,6 +979,7 @@ async function handleScrobble(data, sender) {
             episodeTitle: episodeTitle,
             image: finalImage,
             backdrop: finalBackdrop,
+            logo: finalLogo,
             progress: progressVal,
             currentTime: data.currentTime || null,
             duration: data.duration || null,
@@ -885,7 +989,8 @@ async function handleScrobble(data, sender) {
             traktYear: show.year,
             year: show.year || data.year || null,
             tmdb_id: itemTmdbId,
-            ids: { ...(show.ids || {}), tmdb: itemTmdbId, netflix: netflixEpId ? parseInt(netflixEpId) : undefined },
+            episode_tmdb_id: episodeTmdbId || null,
+            ids: { ...(show.ids || {}), tmdb: parsed.type === 'episode' ? (episodeTmdbId || undefined) : itemTmdbId, netflix: netflixEpId ? parseInt(netflixEpId) : undefined },
             synopsis: synopsis,
             rating: show.rating ? String(show.rating) : (show.vote_average ? String(show.vote_average.toFixed(1)) : null),
             genres: show.genres ? show.genres.slice(0, 3) : [],
@@ -893,9 +998,52 @@ async function handleScrobble(data, sender) {
             certification: show.certification || null,
             network: show.network || null,
             platform: data.platform || platform,
-            tabId: tabId
+            tabId: tabId,
+            imdb_id: show.imdb_id || show.ids?.imdb || null,
+            external_ratings: externalRatings,
+            episode_external_ratings: episodeExternalRatings,
+            episode_imdb_id: episodeImdbId
         }
     });
+}
+
+async function getScrobExternalRatings(mediaType, tmdbId, imdbId, auth) {
+    if (!auth || (!tmdbId && !imdbId)) return null;
+    try {
+        const scrobMediaType = (mediaType === 'episode' || mediaType === 'anime') ? 'series' : 'movie';
+        let query = `media_type=${scrobMediaType}`;
+        if (tmdbId) query += `&tmdb_id=${tmdbId}`;
+        if (imdbId) query += `&imdb_id=${encodeURIComponent(imdbId)}`;
+        const url = getScrobUrl(`/media/external-ratings?${query}`, auth.url);
+        const res = await fetch(url, {
+            headers: getScrobHeaders(auth.token, auth.apiKey)
+        });
+        if (res.ok) {
+            return await res.json();
+        }
+    } catch (e) {
+        console.warn("[STREAMPULSE] Failed to fetch external ratings:", e);
+    }
+    return null;
+}
+
+async function getScrobEpisodeExternalRatings(showTmdbId, season, episode, seriesImdbId, auth) {
+    if (!auth || (!showTmdbId && !seriesImdbId)) return null;
+    try {
+        let query = `season_number=${season}&episode_number=${episode}`;
+        if (showTmdbId) query += `&series_tmdb_id=${showTmdbId}`;
+        if (seriesImdbId) query += `&series_imdb_id=${encodeURIComponent(seriesImdbId)}`;
+        const url = getScrobUrl(`/media/external-ratings/episode?${query}`, auth.url);
+        const res = await fetch(url, {
+            headers: getScrobHeaders(auth.token, auth.apiKey)
+        });
+        if (res.ok) {
+            return await res.json();
+        }
+    } catch (e) {
+        console.warn("[STREAMPULSE] Failed to fetch episode external ratings:", e);
+    }
+    return null;
 }
 
 async function getScrobEpisodeDetails(showTmdbId, season, episode, auth, tmdbKey = null) {
@@ -908,6 +1056,7 @@ async function getScrobEpisodeDetails(showTmdbId, season, episode, auth, tmdbKey
         if (res.ok) {
             const ep = await res.json();
             return {
+                id: ep.id || ep.tmdb_id || null,
                 title: ep.name || ep.title || null,
                 overview: ep.overview || ep.description || null,
                 date: ep.air_date || null
@@ -924,6 +1073,7 @@ async function getScrobEpisodeDetails(showTmdbId, season, episode, auth, tmdbKey
             if (res.ok) {
                 const ep = await res.json();
                 return {
+                    id: ep.id || null,
                     title: ep.name || null,
                     overview: ep.overview || null,
                     date: ep.air_date || null
@@ -1603,9 +1753,10 @@ function formatHms(seconds) {
 async function sendScrobble(action, item, auth, progress = 0, historyKey = null, tabId = null, currentTime = null, duration = null) {
     if (!auth) return;
     const isEpisode = item.media_type === 'episode' || item.type === 'episode' || item.season != null;
-    let tmdbId = item.ids?.tmdb || item.tmdb_id || item.id;
+    const seriesTmdbId = item.series_tmdb_id || item.show_tmdb_id || (isEpisode ? (item.show?.ids?.tmdb || item.show?.tmdb_id || item.show_id) : null);
+    const episodeTmdbId = item.episode_tmdb_id || (isEpisode && item.ids?.tmdb && item.ids?.tmdb !== seriesTmdbId ? item.ids.tmdb : null);
+    const mediaTmdbId = isEpisode ? episodeTmdbId : (item.ids?.tmdb || item.tmdb_id || item.id);
     const yearVal = item.year || item.traktYear || null;
-    const seriesTmdbId = item.series_tmdb_id || (isEpisode ? (item.ids?.tmdb || item.show_tmdb_id) : null);
     const seasonNumber = item.season || 1;
     const episodeNumber = item.episode || 1;
     const runtime = item.runtime || null;
@@ -1624,8 +1775,9 @@ async function sendScrobble(action, item, auth, progress = 0, historyKey = null,
     // SESSION COLLISION FIX: If switching shows, cleanly close the old show session first
     if (action !== 'stop' && activeKodiSession && activeKodiSession.historyKey && activeKodiSession.historyKey !== historyKey) {
         console.log(`[STREAMPULSE] Switching media from "${activeKodiSession.item?.showtitle || activeKodiSession.item?.title}" to "${item.title}". Closing old session.`);
+        const wasCompleted = (activeKodiSession.progress || 0) >= 75;
         try {
-            await sendKodiStop(activeKodiSession.item, auth, false);
+            await sendKodiStop(activeKodiSession.item, auth, wasCompleted, activeKodiSession.progress);
         } catch (e) {
             console.warn("[STREAMPULSE] Could not stop previous Kodi session:", e);
         }
@@ -1636,10 +1788,29 @@ async function sendScrobble(action, item, auth, progress = 0, historyKey = null,
     // This guarantees Scrob has AT MOST ONE active stream from the browser.
     const sessionId = 'browser';
 
+    // Resolve clean streaming platform name for Scrob source display
+    const rawPlatform = String(item.platform || activeKodiSession?.item?.platform || 'browser').toLowerCase();
+    const platformDisplayMap = {
+        'amazon-prime': 'Prime Video',
+        'primevideo': 'Prime Video',
+        'prime': 'Prime Video',
+        'netflix': 'Netflix',
+        'crunchyroll': 'Crunchyroll',
+        'hotstar': 'Hotstar',
+        'jiohotstar': 'JioHotstar',
+        'youtube': 'YouTube',
+        'apple': 'Apple TV+',
+        'appletv': 'Apple TV+',
+        'disney': 'Disney+'
+    };
+    const sourceName = platformDisplayMap[rawPlatform] || item.platform || 'Prime Video';
+
     const kodiItem = {
         type: isEpisode ? 'episode' : 'movie',
         id: sessionId,
-        uniqueid: tmdbId ? { tmdb: String(tmdbId) } : {}
+        platform: sourceName,
+        source: sourceName,
+        uniqueid: mediaTmdbId ? { tmdb: String(mediaTmdbId) } : {}
     };
 
     if (isEpisode) {
@@ -1656,6 +1827,8 @@ async function sendScrobble(action, item, auth, progress = 0, historyKey = null,
     const payload = {
         method: method,
         session_id: sessionId,
+        source: sourceName,
+        platform: sourceName,
         item: kodiItem,
         player: {
             time: formatHms(curSecs),
@@ -1663,7 +1836,7 @@ async function sendScrobble(action, item, auth, progress = 0, historyKey = null,
         }
     };
 
-    const isEnded = action === 'stop' && progress >= 80;
+    const isEnded = action === 'stop' && progress >= 75;
     if (action === 'stop') {
         payload.params = { data: { end: isEnded } };
         activeKodiSession = null;
@@ -1695,7 +1868,7 @@ async function sendScrobble(action, item, auth, progress = 0, historyKey = null,
     }
 
     // Safety net: If user completed the video, also mark watched via /history endpoint
-    if (isEnded && tmdbId) {
+    if (isEnded && mediaTmdbId) {
         try {
             console.log(`[STREAMPULSE] Completing media in Scrob history: "${kodiItem.showtitle || kodiItem.title}"`);
             const histUrl = getScrobUrl('/history', auth.url);
@@ -1703,7 +1876,7 @@ async function sendScrobble(action, item, auth, progress = 0, historyKey = null,
                 method: 'POST',
                 headers: headers,
                 body: JSON.stringify({
-                    tmdb_id: parseInt(tmdbId, 10),
+                    tmdb_id: parseInt(mediaTmdbId, 10),
                     media_type: isEpisode ? "episode" : "movie",
                     watched_at: new Date().toISOString(),
                     completed: true,
@@ -1717,7 +1890,7 @@ async function sendScrobble(action, item, auth, progress = 0, historyKey = null,
 }
 
 
-async function sendKodiStop(kodiItem, auth, ended = false) {
+async function sendKodiStop(kodiItem, auth, ended = false, progressVal = 0) {
     if (!auth) return;
     let webhookUrl = getScrobUrl('/webhooks/kodi', auth.url);
     if (auth.apiKey) {
@@ -1725,11 +1898,14 @@ async function sendKodiStop(kodiItem, auth, ended = false) {
     }
     const headers = getScrobHeaders(auth.token, auth.apiKey);
     const itemPayload = kodiItem || { id: 'browser', type: 'episode', season: 1, episode: 1, title: 'Stop' };
+    const isCompleted = ended || progressVal >= 75;
     const stopPayload = {
         method: 'Player.OnStop',
         session_id: 'browser',
+        source: itemPayload.source || 'browser',
+        platform: itemPayload.platform || 'browser',
         item: itemPayload,
-        params: { data: { end: ended } }
+        params: { data: { end: isCompleted } }
     };
     try {
         await fetch(webhookUrl, {
@@ -1737,16 +1913,37 @@ async function sendKodiStop(kodiItem, auth, ended = false) {
             headers: headers,
             body: JSON.stringify(stopPayload)
         });
-        console.log(`[STREAMPULSE] Sent Player.OnStop for browser session`);
+        console.log(`[STREAMPULSE] Sent Player.OnStop for browser session (completed=${isCompleted})`);
     } catch (e) {}
+
+    // Safety net: If completed, mark watched via /history endpoint
+    if (isCompleted && itemPayload.uniqueid?.tmdb) {
+        try {
+            const histUrl = getScrobUrl('/history', auth.url);
+            await fetch(histUrl, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({
+                    tmdb_id: parseInt(itemPayload.uniqueid.tmdb, 10),
+                    media_type: itemPayload.type || "episode",
+                    watched_at: new Date().toISOString(),
+                    completed: true,
+                    season_number: itemPayload.season ? parseInt(itemPayload.season, 10) : null,
+                    episode_number: itemPayload.episode ? parseInt(itemPayload.episode, 10) : null
+                })
+            }).catch(() => {});
+        } catch (e) {}
+    }
 }
 
 async function doSearchRaw(q, auth, type = 'tv', year = null, tmdbKey = null) {
     if (!auth) return [];
+    const effectiveTmdbKey = tmdbKey || DEFAULT_TMDB_API_KEY;
+
     let scrobType = 'series';
     if (type === 'movie') scrobType = 'movie';
 
-    let url = getScrobUrl(`/media/search?q=${encodeURIComponent(q)}&type=${scrobType}&in_library=false`, auth.url);
+    let url = getScrobUrl(`/media/search?q=${encodeURIComponent(q)}&in_library=false${(type && type !== 'tv,movie' && type !== 'multi') ? `&type=${scrobType}` : ''}`, auth.url);
     if (year) url += `&year=${year}`;
 
     try {
@@ -1782,28 +1979,39 @@ async function doSearchRaw(q, auth, type = 'tv', year = null, tmdbKey = null) {
         console.warn("[STREAMPULSE] Scrob search request error:", e);
     }
 
-    if (tmdbKey) {
+    if (effectiveTmdbKey) {
         try {
-            const tmdbType = scrobType === 'movie' ? 'movie' : 'tv';
-            let tmdbUrl = `https://api.themoviedb.org/3/search/${tmdbType}?query=${encodeURIComponent(q)}&api_key=${tmdbKey}`;
-            if (year) tmdbUrl += `&year=${year}`;
+            let tmdbUrl;
+            if (type === 'tv,movie' || type === 'multi') {
+                tmdbUrl = `https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(q)}&api_key=${effectiveTmdbKey}`;
+            } else {
+                const tmdbType = scrobType === 'movie' ? 'movie' : 'tv';
+                tmdbUrl = `https://api.themoviedb.org/3/search/${tmdbType}?query=${encodeURIComponent(q)}&api_key=${effectiveTmdbKey}`;
+                if (year) tmdbUrl += `&year=${year}`;
+            }
+
             const tmdbRes = await fetch(tmdbUrl);
             if (tmdbRes.ok) {
                 const tmdbData = await tmdbRes.json();
-                return (tmdbData.results || []).map(item => ({
-                    id: item.id,
-                    tmdb_id: item.id,
-                    title: item.title || item.name,
-                    year: (item.release_date || item.first_air_date || '').substring(0, 4),
-                    media_type: scrobType === 'movie' ? 'movie' : 'show',
-                    type: scrobType === 'movie' ? 'movie' : 'tv',
-                    poster_path: item.poster_path,
-                    poster: item.poster_path,
-                    backdrop_path: item.backdrop_path,
-                    backdrop: item.backdrop_path,
-                    overview: item.overview,
-                    ids: { tmdb: item.id }
-                }));
+                return (tmdbData.results || [])
+                    .filter(item => item.media_type !== 'person')
+                    .map(item => {
+                        const isMovie = (item.media_type === 'movie') || (scrobType === 'movie');
+                        return {
+                            id: item.id,
+                            tmdb_id: item.id,
+                            title: item.title || item.name,
+                            year: (item.release_date || item.first_air_date || '').substring(0, 4),
+                            media_type: isMovie ? 'movie' : 'show',
+                            type: isMovie ? 'movie' : 'tv',
+                            poster_path: item.poster_path,
+                            poster: item.poster_path,
+                            backdrop_path: item.backdrop_path,
+                            backdrop: item.backdrop_path,
+                            overview: item.overview,
+                            ids: { tmdb: item.id }
+                        };
+                    });
             }
         } catch (e) {
             console.warn("[STREAMPULSE] Direct TMDB fallback search failed:", e);

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Scrobblr - Stream Scrobbler for Scrob",
-  "version": "3.5.6",
-  "description": "Automatic live media scrobbler for Netflix, Prime Video, JioHotstar, and Crunchyroll to self-hosted Scrob.",
+  "version": "3.5.7",
+  "description": "Automatic live media scrobbler for Netflix, Prime Video, JioHotstar, Crunchyroll, and Apple TV+ to self-hosted Scrob.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -20,6 +20,8 @@
     "*://*.amazon.co.jp/*",
     "*://*.amazon.de/*",
     "*://*.amazon.com.au/*",
+    "*://tv.apple.com/*",
+    "*://*.apple.com/*",
     "http://localhost/*",
     "http://localhost:*/*",
     "http://127.0.0.1/*",
@@ -45,7 +47,8 @@
         "*://*.amazon.co.uk/*",
         "*://*.amazon.co.jp/*",
         "*://*.amazon.de/*",
-        "*://*.amazon.com.au/*"
+        "*://*.amazon.com.au/*",
+        "*://tv.apple.com/*"
       ],
       "js": [
         "content.js"
